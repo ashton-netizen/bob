@@ -1,9 +1,9 @@
 # BOB · project status (living file, update in place)
 
-Last updated: 21 October 2026, Cowork session. Rounds 1 and 2 complete, pane spike seen, start pack built.
+Last updated: 21 October 2026, first Claude Code session on the Code tab. Repo wired, every remote check seen red, Build 1 steps 1 and 3 to 7 implemented and tested; step 2 (the pane on the Code tab) awaits Ash's look.
 
 ## Where BOB is
-- Stage: Phase 0, design. No code exists. No repo exists. No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
+- Stage: Build 1 in progress on branch `build-1`. Repo https://github.com/ashton-netizen/bob (private, Ash's choice 21 October 2026; the GitHub org `step-change` belongs to another company). No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
 - Architecture decided (Round 1, Ash, 20 October 2026): BOB is a Claude Code plugin (pane, gates, slash commands, repo templates) with the design phase in Cowork. The pack's custom local app and adapter are shelved as a measured fallback.
 - Login model: Team plan per Ash ("if unsure"), to be read from the account at kickoff. Mags: Mac with the Claude desktop app, Code tab untested.
 - Owner after launch: Ash. Fixes ship as plugin versions from the repo.
@@ -21,7 +21,7 @@ Last updated: 21 October 2026, Cowork session. Rounds 1 and 2 complete, pane spi
 REVISE. No Stop-if open. Build 1 may start. Open: the pane spike (OQ1) and the GitHub org and repo name (OQ5).
 
 ## Next action
-Claude: run Build 1 from docs/KICKOFF.md in a Claude Code session on this folder, repo wiring first, then the pane on the Code tab surface first among the build steps. Ash needs to: open the Code tab on this folder, paste docs/KICKOFF.md, and say whether the pane is drawn when Claude reaches step 2.
+Ash needs to: click "Turn them on" when the app asks about mods, then look beside the chat for the BOB pane and say whether it is drawn. Claude: on a yes, create bob/ledger.json for BOB's own evidence, finish the marketplace install check (step 8) and merge the Build 1 pull request once its checks are green.
 
 ## Pane spike (OQ1), 20 October 2026
 - Throwaway mod `bob-pane-spike` written in the Cowork session container (not on the Mac, not in any repo): pane "BOB (spike)" plus `/bob-status`, synthetic fixture only, reads and writes nothing, blocks nothing.
@@ -36,3 +36,16 @@ None that stop design work. The pane spike is the first thing that can fail; its
 2. Do not re-ask the four Round 1 decisions.
 3. Check the mechanism ledger (`CLAUDE OUTPUTS/AI Operating System Rollout/_mechanism-ledger.md`) before claiming any hook is verified.
 4. Continue from "Next action". Mark nothing complete without evidence.
+
+## Build 1 log (one line per step: step, state, evidence)
+- Preflight, 21 October 2026: `check_manifest.py` and `check_fixtures.py` pass (38 files, no drift). `claude --version` on PATH is 2.1.287; the desktop session's engine is 2.1.304 (bundled at `~/Library/Application Support/Claude/claude-code/2.1.304/.../claude`). The spike's test FAILS on 2.1.287 (Text prop `weight` refused) and passes on 2.1.304: version floor is 2.1.304. Evidence: docs/evidence/build-1/B1-spike-validate-test-2.1.304.txt. The SessionStart preflight hook fired (its lines appeared at session start, exit 0); exit 2 behaviour not observed yet. GitHub: signed in as ashton-netizen, no org memberships; `step-change` on GitHub is another company. Claude plan: organisation "Step Change", Stripe subscription in the local config, tier name not shown by the CLI: "Team plan per Ash, unverified".
+- Repo wiring: verified. `git init`, one commit to main (e7bb4dd), pushed to https://github.com/ashton-netizen/bob (private). Branch protection on main: pull request required, admins included, no force-push, no deletion. Evidence: `gh api repos/ashton-netizen/bob/branches/main/protection`.
+- Red runs: verified. All five gate.yml checks seen red against their own planted bug. Evidence: docs/evidence/build-1/red-runs.md (five job URLs). Required status checks set on main after the red runs.
+- Step 1 plugin scaffold: verified. `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`, `hooks/register.tsx`, `types/index.d.ts`; states read from bob/schema.json only. `claude plugin validate .` passes with zero refusals (two warnings: CLAUDE.md at plugin root is repo context, not plugin context; none else). Evidence: docs/evidence/build-1/B1-tests-green-stage3.txt.
+- Step 2 pane on the Code tab: implemented, awaiting Ash's look. Route (a): the plugin-authoring skill loaded in this session and the plugin was copied to this session's dev-mods folder; the app asks Ash once to turn mods on. Pane reads fixtures/ledger.json (synthetic) because this repo has no bob/brief.json. Pane test passes on terminal, desktop, vscode and mobile element tables with the stale flag. Evidence: B1-tests-green-stage3.txt.
+- Step 3 Gate A: verified by test, red then green. No approval: Write, Edit and file-writing Bash denied, denial names the approval and "Ash needs to". Matching approval: allowed. Brief changed by one requirement: denied naming the stale approval. Evidence: B1-tests-red-stage1.txt (red before the gate existed), B1-tests-red-stage2-allow-paths.txt (allow paths red against an over-strict gate), B1-tests-green-stage3.txt. Not yet seen live in a session (needs a governed repo; Build 2).
+- Step 4 Gate B: verified by test, red then green. A round that wrote files and gained no evidence is blocked at Stop with the requirement ids named; passes once an evidence record lands; a round that wrote nothing may end; one block per round (`stop_hook_active`). Evidence: same three files.
+- Step 5 state table: verified by test, red then green. verified without evidence rejected; accepted from a tool call rejected (needs human); an illegal transition rejected; a lawful step allowed; Edit and Write both guarded. Evidence: same three files.
+- Step 6 preflight: verified. The settings hook ran at session start (seen). `scripts/preflight.test.sh`: 11 cases, one failing case per STOP condition, each seen red against a mutated preflight. Evidence: B1-preflight-tests-green.txt, B1-preflight-tests-red-mutations.txt. Added to the schema-and-fixtures check.
+- Step 7 /bob status: implemented and tested (output asserted in the test: increment, task, blocker, next action, owner, stale, preflight). Not yet seen in this session: the command exists only once the mod loads at the end of this turn.
+- Step 8 marketplace: implemented (`.claude-plugin/marketplace.json`, validate passes). Install from a fresh folder not yet run; Ash confirms.

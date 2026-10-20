@@ -1,0 +1,19 @@
+# preflight.test.sh against five mutated copies of preflight.sh, one check neutered each. Expected: at least one case FAILED per mutation (the test is red against its own bug).
+# 2026-10-21 09:21 AEDT
+--- mutation 1: s/-gt 1 \]/-gt 999999 ]/
+preflight.test · branch is main with 2 commits · FAILED: expected exit 2 with a STOP line naming 'on main with 2 commits'; got exit 0
+preflight.test · 10 passed, 1 failed
+--- mutation 2: s/bad "missing \$f"/say "missing \$f (neutered)"/
+preflight.test · plan file missing · FAILED: expected exit 2 with a STOP line naming 'missing docs/product/product-plan.md'; got exit 0
+preflight.test · 10 passed, 1 failed
+--- mutation 3: s/bad "no ledger and no fixture"/say "no ledger (neutered)"/
+preflight.test · no ledger and no fixture · FAILED: expected exit 2 with a STOP line naming 'no ledger and no fixture'; got exit 0
+preflight.test · 10 passed, 1 failed
+--- mutation 4: s/bad "\$env: \$name has a placeholder value"/say "\$env: \$name (neutered)"/
+preflight.test · placeholder key YOUR_ · FAILED: expected exit 2 with a STOP line naming 'FAKE_SERVICE_KEY has a placeholder value'; got exit 0
+preflight.test · empty key value · FAILED: expected exit 2 with a STOP line naming 'FAKE_SERVICE_KEY has a placeholder value'; got exit 0
+preflight.test · dots placeholder in .env.local · FAILED: expected exit 2 with a STOP line naming 'FAKE_SERVICE_KEY has a placeholder value'; got exit 0
+preflight.test · 8 passed, 3 failed
+--- mutation 5: s/bad "runtime Babel found (text\/babel). Plain JavaScript only."/say "babel (neutered)"/
+preflight.test · runtime Babel · FAILED: expected exit 2 with a STOP line naming 'runtime Babel found'; got exit 0
+preflight.test · 10 passed, 1 failed

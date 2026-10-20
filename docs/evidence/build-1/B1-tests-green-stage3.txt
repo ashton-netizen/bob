@@ -1,0 +1,30 @@
+# Stage 3: full module, all tests. Expected: all green.
+# 2026-10-21 09:20 AEDT · engine 2.1.304 (Claude Code)
+Validating hooks: /Users/ash/Downloads/BOB_Claude-Code-Start-Pack_v1/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, turn.start, command.run{command=bob}, tool.call{tool=/"^(Edit|Write|MultiEdit|NotebookEdit)$"/}, tool.call{tool=Bash}, classic.Stop, ui.render{component=Pane, requestId=bob-board}
+  ❯ ./register.tsx answers its own command: command.run{command=bob}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=/"^(Edit|Write|MultiEdit|NotebookEdit)$"/}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.tsx gating hook without .catch: classic.Stop
+  ❯ ./register.tsx calls: $.command.register, $.fs.exists (via exists), $.fs.read (via readText, sha256File), $.fs.stat (via load), $.process.run, $.state.get, $.state.set, $.ui.invalidate (via redraw), $.ui.open, $.ui.resolve, $.ui.toast
+  ❯ ./register.tsx state writes: bob.baseline, bob.preflight, bob.touched
+  ❯ ./register.tsx state reads: bob.baseline, bob.preflight, bob.touched
+
+✔ Validation passed with warnings
+
+hooks/bob.test.tsx:
+(pass) the pane draws the ledger on every surface: Now, Board with a blocked chip, Evidence, and a stale flag [46.41ms]
+(pass) Gate A refuses a write when no approval covers the active increment, naming the approval and one next action [17.91ms]
+(pass) Gate A allows a write under a matching approval [14.77ms]
+(pass) Gate A refuses again when bob/brief.json changed by one byte after approval [12.54ms]
+(pass) Gate A idles in a repo BOB does not govern (no bob/brief.json) [12.73ms]
+(pass) Gate B blocks the end of a round that wrote files but gained no evidence, naming the ids; passes once evidence lands [17.20ms]
+(pass) Gate B lets a round that wrote nothing end [11.95ms]
+(pass) state table: verified without evidence is rejected; accepted from a tool call is rejected; a lawful step is allowed [22.33ms]
+(pass) a preflight STOP shows on the board and in /bob status [17.35ms]
+
+ 9 pass
+ 0 fail
+Ran 9 tests across 1 file. [0.30s]
+exit 0

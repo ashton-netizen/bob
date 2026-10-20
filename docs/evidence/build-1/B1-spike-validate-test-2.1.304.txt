@@ -1,0 +1,12 @@
+# Spike test on its own, before archiving its test file (the root plugin shares its pane id).
+# 2026-10-21 09:19 AEDT · engine 2.1.304 (Claude Code) · CLI on PATH 2.1.287 (Claude Code) fails this same test: Text prop weight refused
+  ❯ ./register.tsx calls: $.command.register, $.ui.open, $.ui.resolve
+
+✔ Validation passed with warnings
+
+hooks/pane.test.tsx:
+(pass) the board draws the fixture on every surface, with a blocked chip [27.45ms]
+
+ 1 pass
+ 0 fail
+Ran 1 test across 1 file. [0.14s]

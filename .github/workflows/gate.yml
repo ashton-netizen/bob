@@ -12,6 +12,11 @@ jobs:
   secret-scan:
     name: secret scan (gitleaks, full history)
     runs-on: ubuntu-latest
+    # The action reads the pull request's commits through the API; without this
+    # the default token gets 403 (seen red for the wrong reason, 21 October 2026).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,17 +56,18 @@ jobs:
           node-version: 22
       - name: install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+      # Version floor 2.1.304: the Text prop "weight" the pane uses is refused by
+      # 2.1.287 (seen on Ash's Mac, 21 October 2026). Print what CI got.
+      - run: claude --version
       # OPEN: whether `claude plugin validate` and `claude plugin test` run without a login
       # in CI is not yet verified. Build 1 step 1 confirms it; if they need auth, this job
       # is split and the auth route recorded in docs/handoff.md. Never put a key here.
-      - name: validate the spike (and the production plugin once it exists)
+      - name: validate (the spike's test is archived; see plugin-spike/README.md)
         run: |
           claude plugin validate ./plugin-spike
-          if [ -f ./.claude-plugin/plugin.json ]; then claude plugin validate .; fi
+          claude plugin validate .
       - name: test
-        run: |
-          claude plugin test ./plugin-spike
-          if [ -f ./.claude-plugin/plugin.json ]; then claude plugin test .; fi
+        run: claude plugin test .
 
   schema-and-fixtures:
     name: schema and fixtures parse and agree
@@ -69,3 +75,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -I scripts/check_fixtures.py
+      - name: preflight STOP conditions, one failing case each
+        run: bash scripts/preflight.test.sh
