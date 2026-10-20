@@ -42,5 +42,5 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - Local hooks are skippable by one tired person; the remote required checks are the real gate. Do not call R10 or R13 enforced until gate.yml is required and has been red once.
 
 ## What the next person should do
-1. Claude: run the marketplace install check in a fresh empty folder (step 8) and have Ash confirm the pane appears in a new session there.
-2. Claude: after Build 1, write the AquaAgent adopt kickoff; do not start it in the same session.
+1. Claude: write the Build 2 kickoff (`/bob adopt` on AquaAgent) in a new session; do not start it in the Build 1 session. Inputs: docs/product/product-plan.md Build 2, this file, the AquaAgent repo's CLAUDE.md and its 18 October drift review.
+2. Ash needs to: give Mags access to the private repo before her pilot, or make it public.

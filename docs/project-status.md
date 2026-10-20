@@ -1,6 +1,6 @@
 # BOB · project status (living file, update in place)
 
-Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 1 merged to main (pull request 2). Pane seen by Ash on the Code tab. BOB installed from the repo into a fresh folder with one command; Ash's confirmation of the pane in a new session there is the last open check.
+Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 1 COMPLETE and merged to main. Pane seen by Ash on the Code tab, and again in a fresh folder after a one-command install from the repo (step 8 verified by Ash).
 
 ## Where BOB is
 - Stage: Build 1 merged to main on 21 October 2026 (pull request 2, all five required checks green). Closeout notes on branch `build-1-closeout`. Repo https://github.com/ashton-netizen/bob (private, Ash's choice 21 October 2026; the GitHub org `step-change` belongs to another company). No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
@@ -21,7 +21,7 @@ Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 
 REVISE. No Stop-if open. Build 1 under way. OQ1 (pane on the Code tab) CLOSED 21 October 2026, Ash's look. OQ5 (repo) CLOSED: ashton-netizen/bob.
 
 ## Next action
-Ash needs to: open a new Code tab session on `~/Downloads/bob-install-check` (Terminal: `cd ~/Downloads/bob-install-check && claude --desktop`) and say whether the BOB pane appears. Claude: on a yes, mark step 8 verified and write the AquaAgent adopt kickoff for Build 2 in a new session.
+Claude: write the Build 2 kickoff (`/bob adopt` on AquaAgent) in a new session, starting from docs/product/product-plan.md Build 2 and docs/handoff.md. Build 2 does not start in the Build 1 session.
 
 ## Pane spike (OQ1), 20 October 2026
 - Throwaway mod `bob-pane-spike` written in the Cowork session container (not on the Mac, not in any repo): pane "BOB (spike)" plus `/bob-status`, synthetic fixture only, reads and writes nothing, blocks nothing.
@@ -51,4 +51,5 @@ None that stop design work. The pane spike is the first thing that can fail; its
 - Step 8 marketplace: implemented (`.claude-plugin/marketplace.json`, validate passes). Install from a fresh folder not yet run; Ash confirms.
 - bob/ledger.json: verified. BOB's own ledger (real records, is_synthetic false): INC-B1 active with R08, R10, R12, R13; run RUN-B1-01; five events; seven evidence records pointing at docs/evidence/build-1/. The module now prefers bob/ledger.json over fixtures/ as soon as it exists (test seen red then green: B1-tests-red-own-ledger.txt, B1-tests-green-own-ledger.txt). No hook writes ledger events yet: Claude writes records by hand from tool results. The loaded mod in this session was updated; the preflight reports the ledger present.
 - Merge: verified. Pull request 2 merged into main at e3b7a6e with all five required checks green (run 39511124419). main now carries Build 1; every later change goes branch, pull request, merge.
-- Step 8 marketplace install: implemented and tested from the CLI; Ash's confirmation pending. In the fresh empty folder `~/Downloads/bob-install-check`, `claude plugin install bob --marketplace ashton-netizen/bob --scope project` (engine 2.1.304) added the marketplace in user settings, installed bob@bob 0.1.0 enabled at project scope, and wrote `.claude/settings.json` with `enabledPlugins: { "bob@bob": true }`. Evidence: docs/evidence/build-1/B1-step8-install-fresh-folder.txt. The pane appearing in the next session on that folder is Ash's check (I CHECK THIS).
+- Step 8 marketplace install: VERIFIED. Ash opened a new Code tab session on `~/Downloads/bob-install-check` and saw the BOB pane (21 October 2026). Earlier detail: In the fresh empty folder `~/Downloads/bob-install-check`, `claude plugin install bob --marketplace ashton-netizen/bob --scope project` (engine 2.1.304) added the marketplace in user settings, installed bob@bob 0.1.0 enabled at project scope, and wrote `.claude/settings.json` with `enabledPlugins: { "bob@bob": true }`. Evidence: docs/evidence/build-1/B1-step8-install-fresh-folder.txt. The pane appearing in the next session on that folder is Ash's check (I CHECK THIS).
+- Build 1 closed: INC-B1 set done, RUN-B1-01 completed in bob/ledger.json; evidence E-B1-09 (origin human) records Ash's confirmation of the pane in the fresh folder. Build 1 DoD lines 1 to 3 green by 24 October 2026 target: met on 21 October (lines 1 and 2 by test, line 3 by Ash's look). Open from the DoD standing lines: rollback not rehearsed.
