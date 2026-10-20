@@ -1,0 +1,8 @@
+⚠ CLAUDE.md: CLAUDE.md at the plugin root is not loaded as project context. To ship context with your plugin, use a skill (skills/<name>/SKILL.md) instead.
+Plugin:  bob
+Version: 0.2.0 (from plugin.json)
+Marketplace entry: plugins[0] in /Users/ash/Downloads/BOB_Claude-Code-Start-Pack_v1/.claude-plugin/marketplace.json
+Tag:     bob--v0.2.0
+
+✔ Created tag bob--v0.2.0
+✔ Pushed to origin
