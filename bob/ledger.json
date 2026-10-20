@@ -10,7 +10,7 @@
         "R12",
         "R13"
       ],
-      "state": "active",
+      "state": "done",
       "approval_id": "none (BOB is not self-governed in Build 1; no bob/brief.json)",
       "created_at": "2026-10-21T09:51:07+11:00",
       "source": "ai",
@@ -21,12 +21,12 @@
     {
       "id": "RUN-B1-01",
       "increment_id": "INC-B1",
-      "state": "running",
+      "state": "completed",
       "started_at": "2026-10-21T08:55:00+11:00",
-      "last_event_at": "2026-10-21T09:53:48+11:00",
+      "last_event_at": "2026-10-21T09:55:26+11:00",
       "session_id": "7cb57087-0208-4148-b7ef-bada6c71f454",
       "cancel_requested": false,
-      "exit_reason": null,
+      "exit_reason": "Build 1 complete: steps 1 to 8 verified",
       "cost_usd_reported": null,
       "created_at": "2026-10-21T09:51:07+11:00",
       "source": "tool",
@@ -109,6 +109,17 @@
       "detail": "Step 8: claude plugin install bob --marketplace ashton-netizen/bob --scope project succeeded in ~/Downloads/bob-install-check; installed copy validates, 10 tests pass",
       "created_at": "2026-10-21T09:53:48+11:00",
       "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "EV-B1-08",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T09:55:26+11:00",
+      "origin": "human",
+      "type": "finished",
+      "detail": "Ash: BOB pane appears in a new Code tab session on the fresh install folder. Build 1 complete.",
+      "created_at": "2026-10-21T09:55:26+11:00",
+      "source": "human",
       "is_synthetic": false
     }
   ],
@@ -199,6 +210,17 @@
       "origin": "tool",
       "created_at": "2026-10-21T09:53:48+11:00",
       "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-09",
+      "requirement_id": "R12",
+      "kind": "artefact",
+      "ref": "docs/project-status.md",
+      "captured_at": "2026-10-21T09:55:26+11:00",
+      "origin": "human",
+      "created_at": "2026-10-21T09:55:26+11:00",
+      "source": "human",
       "is_synthetic": false
     }
   ]
