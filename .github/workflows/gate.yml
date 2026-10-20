@@ -1,0 +1,71 @@
+# BOB required checks. Each job must be made a required status check on main
+# (branch protection) and each must be seen RED once against its own bug before
+# it counts (docs/product/product-plan.md, Part 3). Unrun until pushed.
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  secret-scan:
+    name: secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  personal-data:
+    name: no personal or client data in Claude files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: grep for email addresses and phone numbers in CLAUDE.md, .claude/, bob/, fixtures/
+        run: |
+          set -e
+          hits=$(grep -rnIE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(\+?61|0)[2-9][0-9 ]{8,}' CLAUDE.md .claude bob fixtures 2>/dev/null || true)
+          if [ -n "$hits" ]; then echo "$hits"; echo "personal data found in Claude files"; exit 1; fi
+          echo "clean"
+
+  no-runtime-babel:
+    name: no runtime Babel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if grep -rIl --include='*.html' --include='*.htm' --include='*.js' --include='*.jsx' --include='*.ts' --include='*.tsx' --exclude-dir=references --exclude-dir=.git 'text/babel' .; then echo "runtime Babel found"; exit 1; fi
+          echo "clean"
+
+  plugin:
+    name: plugin validate and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      # OPEN: whether `claude plugin validate` and `claude plugin test` run without a login
+      # in CI is not yet verified. Build 1 step 1 confirms it; if they need auth, this job
+      # is split and the auth route recorded in docs/handoff.md. Never put a key here.
+      - name: validate the spike (and the production plugin once it exists)
+        run: |
+          claude plugin validate ./plugin-spike
+          if [ -f ./.claude-plugin/plugin.json ]; then claude plugin validate .; fi
+      - name: test
+        run: |
+          claude plugin test ./plugin-spike
+          if [ -f ./.claude-plugin/plugin.json ]; then claude plugin test .; fi
+
+  schema-and-fixtures:
+    name: schema and fixtures parse and agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -I scripts/check_fixtures.py

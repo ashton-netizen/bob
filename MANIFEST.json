@@ -1,0 +1,198 @@
+{
+  "title": "BOB Claude Code Start Pack",
+  "version": 1,
+  "compiled": "2026-10-21",
+  "status": "plan, data contract, gates as config, validated pane spike; application not built",
+  "files": [
+    {
+      "path": ".claude/settings.json",
+      "sha256": "65ec99e6c5544b64bfb519338a275e75c7df662e5bce0df72455506bdf1bff58",
+      "bytes": 322
+    },
+    {
+      "path": ".github/workflows/gate.yml",
+      "sha256": "f4ff1c6a6eca2dc8cb3da7810d9ebac93cb0f093009dfdcf7ef35ed5b38e335d",
+      "bytes": 2651
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "833b8ab15f281e88b8055ba4974cf0422f39662ae657922977cd06fcda6f36fb",
+      "bytes": 361
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "a9e9ab4e84bc709548c2641c37d88188c3f7e4c193f3489ce80ab9278a6867be",
+      "bytes": 5652
+    },
+    {
+      "path": "START-HERE.md",
+      "sha256": "f335feaecf5ea1967c3b5b741b5d125ddc846aed2327688bbb443d23d6ad87ac",
+      "bytes": 5530
+    },
+    {
+      "path": "bob/schema.json",
+      "sha256": "d42a10e76007c36471735358945e86916554974a71f8f895db0f9b1f7813e8ea",
+      "bytes": 5186
+    },
+    {
+      "path": "docs/KICKOFF.md",
+      "sha256": "735a81e3fa4b49f4c1920f870ffccf11f2d931c68def769a552c91c1320e8bef",
+      "bytes": 7009
+    },
+    {
+      "path": "docs/evidence/README.md",
+      "sha256": "ae879123c36336c7239859110cef9cbc32949e12f1fbecc1925d51046f092ba4",
+      "bytes": 858
+    },
+    {
+      "path": "docs/handoff.md",
+      "sha256": "065813c8d4dcec3118c0e8df0bac73a937868b8aa7379a26530ae18d0c6bc337",
+      "bytes": 3287
+    },
+    {
+      "path": "docs/product/definition-of-done.md",
+      "sha256": "edd1f50dd25fefdee553b0b48d21c1bb1228ce9750f7d6ee8accdc6d3c89de1d",
+      "bytes": 3916
+    },
+    {
+      "path": "docs/product/product-plan.md",
+      "sha256": "0f71c1466623788ad132b9954202e2afd054106ceae9c1e72fdc889a58aaed6e",
+      "bytes": 26699
+    },
+    {
+      "path": "docs/project-status.md",
+      "sha256": "d8913cf1229f1c6ef3d90ae76565e0d02e24c711de9cac93e4811b5c8cec33f6",
+      "bytes": 3569
+    },
+    {
+      "path": "fixtures/README.md",
+      "sha256": "4f11eee67814de3f62cb29f4523471a1e203815c7727263e02f7758c4d7fc42e",
+      "bytes": 1137
+    },
+    {
+      "path": "fixtures/approvals.json",
+      "sha256": "2eb2e9caf67fd6121f1222c4915368498161e4bef10f46c535dd5609c6b6a86b",
+      "bytes": 594
+    },
+    {
+      "path": "fixtures/brief.json",
+      "sha256": "6ee730bdb3bf066d679a1a3d6327302ca2c6c49768f6b931d0cab2f04aaac5be",
+      "bytes": 2742
+    },
+    {
+      "path": "fixtures/ledger.json",
+      "sha256": "f855a63a147cd25be48ef9ff7873d65ea3a3a5c1f69865173108617c6106c87f",
+      "bytes": 3469
+    },
+    {
+      "path": "fixtures/sources.json",
+      "sha256": "310051291b1c5c806ae9c04e10f5d4afced996dc1d239a57687d59604ec06f89",
+      "bytes": 1611
+    },
+    {
+      "path": "plugin-spike/.claude-plugin/plugin.json",
+      "sha256": "ff41dc5a701bfac14e6d4d679be2130749f454e46662ee35fa5888a1494f4b9b",
+      "bytes": 196
+    },
+    {
+      "path": "plugin-spike/hooks/hooks.json",
+      "sha256": "d842d789476d67282d0f04b7e5fdc68a3d981ccec65dd79cfa2d11eed13fb828",
+      "bytes": 34
+    },
+    {
+      "path": "plugin-spike/hooks/pane.test.tsx",
+      "sha256": "42a4984b9b9095e3b93fbd442593481a98c2011ecbf67abee4e1264ad9b5c26c",
+      "bytes": 1093
+    },
+    {
+      "path": "plugin-spike/hooks/register.tsx",
+      "sha256": "06ab88417e3dd2a448f32155405ef6d44116d017a667eae2ce85973164b56e78",
+      "bytes": 3590
+    },
+    {
+      "path": "references/BOB_Product-and-Build-Brief_v1.md",
+      "sha256": "5eb32e3304c9500788c4bb0fd5580e65f21d809e8791d895b10543508819f5b4",
+      "bytes": 37467
+    },
+    {
+      "path": "references/COVERAGE.md",
+      "sha256": "50fe0ca1bfe9165887ad75ea90b73caa7a0fced16c8aad76ec1c1bf79efc9c15",
+      "bytes": 2398
+    },
+    {
+      "path": "references/build-brief/README.md",
+      "sha256": "13d1d34322c2eda84416271592bdf3626f7e65a5e1caf64e8cf7f93ca3a5cac3",
+      "bytes": 3951
+    },
+    {
+      "path": "references/build-brief/SKILL.md",
+      "sha256": "a5f0269da6a7e7785af1058683832827e831c98608776b8b0b96ae50a528d329",
+      "bytes": 21126
+    },
+    {
+      "path": "references/build-brief/assets/dod-checklist.md",
+      "sha256": "66ec66efbd8f77557ed093d104c2927079e45d5b7cd37f7aa9613ecb13e46f09",
+      "bytes": 3611
+    },
+    {
+      "path": "references/build-brief/assets/step-change-build-brief.md",
+      "sha256": "55b1409d6c86cfe52de3fb9fbf924b36dc0d98bfdff1a613bd65ac042b945ea5",
+      "bytes": 5508
+    },
+    {
+      "path": "references/build-brief/evals/evals.json",
+      "sha256": "96ec86af345f4c54c1e6aec41a760751db960983ca6e11741cfcb787cd4f7285",
+      "bytes": 4158
+    },
+    {
+      "path": "references/build-brief/references/block-questions.md",
+      "sha256": "7685a25ef12709e80cc183cc02d0a6aa77b0e5e8b70697d638f8be5d92e3855d",
+      "bytes": 13219
+    },
+    {
+      "path": "references/build-brief/references/enforcement.md",
+      "sha256": "e92c8829e5a32fed7a64db473a8bef2553a60858594bad2d91bc73adff0660b0",
+      "bytes": 4825
+    },
+    {
+      "path": "references/build-brief/references/evidence-rules.md",
+      "sha256": "16bf087286423d682a67a4eb4a6ca0a12913b981be169cbd3e27315e8d02442b",
+      "bytes": 3830
+    },
+    {
+      "path": "references/build-brief/references/il-playbook.md",
+      "sha256": "e120ea676faeb244c20da88f737232b00abe7a95d0fa4eb5abe165eb84ad1b71",
+      "bytes": 12131
+    },
+    {
+      "path": "references/build-brief/references/lessons-library.md",
+      "sha256": "2126df768f422d0ec9162fcc844ccb356013d52039a876d506f497fe1e8ca524",
+      "bytes": 8021
+    },
+    {
+      "path": "references/build-brief/references/review-prompts.md",
+      "sha256": "5a3c4bc93220aa78bd5ee106b76be486ab577a61e4959fef6f45d305ddd845ff",
+      "bytes": 5842
+    },
+    {
+      "path": "references/build-brief/references/sources.md",
+      "sha256": "65ec0eb3a96b3083d8744a577c80ef9ed49ec2b396bdad7a07fa7b376efac786",
+      "bytes": 5060
+    },
+    {
+      "path": "scripts/check_fixtures.py",
+      "sha256": "b253dacfbd4319b4c694f0aef92b5f5b008f688eea3bc8b409028d138ae12a0e",
+      "bytes": 4725
+    },
+    {
+      "path": "scripts/check_manifest.py",
+      "sha256": "4f1f2ed6572583ce448f43abf67362596d5769aed8db441392f1315ef9758313",
+      "bytes": 2185
+    },
+    {
+      "path": "scripts/preflight.sh",
+      "sha256": "4f9be9054cf932ec4a833f5d6979a2a061a5f08ea24914a41da4fb595aa0bd74",
+      "bytes": 2663
+    }
+  ]
+}

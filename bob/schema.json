@@ -1,0 +1,226 @@
+{
+  "$comment": "BOB data contract v1. ONE HOME for record shapes, states and transitions. The pane, the gates, /bob status and the export all read this file. A second copy anywhere is a defect. Validated by scripts/check_fixtures.py against fixtures/.",
+  "version": 1,
+  "record_base": {
+    "required": [
+      "id",
+      "created_at",
+      "source",
+      "is_synthetic"
+    ],
+    "source_values": [
+      "human",
+      "ai",
+      "tool"
+    ]
+  },
+  "files": {
+    "bob/brief.md": "human-readable brief, mirrors product-plan Part 1",
+    "bob/brief.json": "requirements, decisions, assumptions, outputs",
+    "bob/approvals.json": "immutable approval records; a change is a new record",
+    "bob/ledger.json": "increments, runs, events, evidence",
+    "bob/sources.json": "source register with the three independent dimensions",
+    "docs/evidence/": "raw evidence files referenced by evidence.ref"
+  },
+  "requirement": {
+    "fields": [
+      "id",
+      "priority",
+      "text",
+      "check",
+      "state",
+      "evidence_ids",
+      "source_ids"
+    ],
+    "priority_values": [
+      "MUST",
+      "SHOULD",
+      "LATER"
+    ],
+    "states": [
+      "not_assessed",
+      "blocked",
+      "designed",
+      "implemented",
+      "reported",
+      "verified",
+      "accepted"
+    ],
+    "transitions": {
+      "not_assessed": [
+        "designed",
+        "blocked"
+      ],
+      "blocked": [
+        "designed",
+        "not_assessed"
+      ],
+      "designed": [
+        "implemented",
+        "blocked"
+      ],
+      "implemented": [
+        "reported",
+        "verified",
+        "blocked"
+      ],
+      "reported": [
+        "verified",
+        "implemented",
+        "blocked"
+      ],
+      "verified": [
+        "accepted",
+        "implemented"
+      ],
+      "accepted": [
+        "implemented"
+      ]
+    },
+    "transition_rules": {
+      "to_verified_requires": "at least one evidence record for this requirement with kind in evidence.kinds",
+      "to_accepted_requires": "a human source on the transition event (source = human)",
+      "model_prose_may_set_at_most": "reported"
+    }
+  },
+  "approval": {
+    "fields": [
+      "id",
+      "brief_hash",
+      "scope_increment_ids",
+      "approver",
+      "approved_at"
+    ],
+    "immutable": true,
+    "brief_hash": "sha256 of bob/brief.json at approval time; Gate A compares it to the current file"
+  },
+  "increment": {
+    "fields": [
+      "id",
+      "title",
+      "requirement_ids",
+      "state",
+      "approval_id"
+    ],
+    "states": [
+      "proposed",
+      "approved",
+      "active",
+      "done",
+      "returned"
+    ]
+  },
+  "run": {
+    "fields": [
+      "id",
+      "increment_id",
+      "state",
+      "started_at",
+      "last_event_at",
+      "session_id",
+      "cancel_requested",
+      "exit_reason",
+      "cost_usd_reported"
+    ],
+    "states": [
+      "queued",
+      "awaiting_permission",
+      "running",
+      "awaiting_decision",
+      "verifying",
+      "failed",
+      "cancelled",
+      "completed"
+    ],
+    "stale_rule": "a run is stale when now - last_event_at exceeds 120 seconds while state is running or verifying; the pane shows 'stale, reconciling'",
+    "cost_note": "cost_usd_reported is the runtime's own estimate when supplied; never summed across resumed sessions as new spend"
+  },
+  "event": {
+    "fields": [
+      "id",
+      "run_id",
+      "at",
+      "origin",
+      "type",
+      "detail"
+    ],
+    "origin_values": [
+      "runtime",
+      "hook",
+      "human",
+      "bob"
+    ],
+    "type_values": [
+      "started",
+      "tool_call",
+      "tool_result",
+      "permission_requested",
+      "decision_requested",
+      "heartbeat",
+      "cancelled",
+      "finished",
+      "reconciled"
+    ]
+  },
+  "evidence": {
+    "fields": [
+      "id",
+      "requirement_id",
+      "kind",
+      "ref",
+      "captured_at",
+      "origin"
+    ],
+    "kinds": [
+      "diff",
+      "test",
+      "artefact",
+      "screenshot"
+    ],
+    "origin_values": [
+      "tool",
+      "human"
+    ],
+    "rule": "prose from a model is never evidence; a heartbeat is never evidence"
+  },
+  "source": {
+    "fields": [
+      "id",
+      "name",
+      "type",
+      "version",
+      "fingerprint",
+      "scope",
+      "access",
+      "processing",
+      "knowledge_use"
+    ],
+    "access_values": [
+      "available",
+      "permission_needed",
+      "missing",
+      "inaccessible"
+    ],
+    "processing_values": [
+      "queued",
+      "reading",
+      "extracted",
+      "partial",
+      "failed",
+      "unsupported"
+    ],
+    "knowledge_use_values": [
+      "proposed",
+      "reviewed",
+      "accepted",
+      "mapped",
+      "verified_in_output"
+    ],
+    "rule": "a connector or unsupported format never shows as ingested merely because a file was attached"
+  },
+  "gates": {
+    "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) and the active increment in scope_increment_ids",
+    "B_evidence": "block the end of a turn when the active increment's requirement_ids gained no evidence record during this run",
+    "preflight": "scripts/preflight.sh on SessionStart"
+  }
+}

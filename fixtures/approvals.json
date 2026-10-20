@@ -1,0 +1,6 @@
+{
+  "$comment": "SYNTHETIC. brief_hash is the sha256 of fixtures/brief.json as shipped; scripts/check_fixtures.py recomputes it and fails if it drifts, which is exactly what Gate A must do in production. The hash is written at pack build time and re-checked on every run.",
+  "approvals": [
+    { "id": "AP-03", "brief_hash": "6ee730bdb3bf066d679a1a3d6327302ca2c6c49768f6b931d0cab2f04aaac5be", "scope_increment_ids": ["INC-02"], "approver": "Mags (fixture)", "approved_at": "2026-10-20T09:30:00+11:00", "created_at": "2026-10-20T09:30:00+11:00", "source": "human", "is_synthetic": true }
+  ]
+}

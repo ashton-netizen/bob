@@ -1,0 +1,15 @@
+# keys and local state never enter the repo
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.DS_Store
+node_modules/
+dist/
+# engine-written type folders inside plugin dirs
+**/.claude-plugin/types/
+# local-only Claude settings
+.claude/settings.local.json
+# evidence raw dumps over 1MB go to the evidence store, not git (rule in docs/evidence/README.md)
+docs/evidence/*.log

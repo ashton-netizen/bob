@@ -1,0 +1,47 @@
+{
+  "skill_name": "build-brief",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm about to build a little tool for the next Nail Your Value room: people scan a QR, paste their website, and get a one-line value gap score on their phone. Brief this build.",
+      "expected_output": "Interview mode. Step 0 reads the live Value Gap Audit, its handover and repo first, runs a reuse check and pre-fills what it can. Before Round 1 it states the cost (questions, rounds, minutes of operator time). Asks in batched rounds of up to four, working between rounds. Probes run-source tagging at creation, SSRF on the pasted URL, a daily spend ceiling, 375px and the critical-path UX states. Part 3 maps each rule to a remote check, test or hook, and Round 4 asks how the deploy avoids bypassing remote checks. Writes OPEN QUESTIONS rather than defaults, ends with GO, REVISE or BLOCKED and the operator time used.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Here's the spec for the Deep Dive Agent. It interviews a client's leadership team in my voice, reads their docs and website, and writes a themes page. Is this ready to build?",
+      "expected_output": "Check mode. Scores each block answered, vague or missing and asks only the gaps. Block 9 is central: trigger, tools, log, never-list (no client contact without a human click). Block 5 probes personal data, anonymised verbatims, overseas processing by the LLM provider, deletion. Flags that 'my voice' needs a declared-AI disclosure check. Returns BLOCKED if any Stop-if is open.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The source tagging on the audit is deployed. Can you check the build against the brief and tell me if it's done?",
+      "expected_output": "Verify mode, read-only. Loads the existing brief and DoD unchanged. Marks each line PASS, FAIL or I CHECK THIS with one sentence of observed evidence. Checks the deployed artefact, not the source; checks a browser with saved state; does not run a live audit (I CHECK THIS for anything needing a real run). Reports whether ship-it-safely was installed and run. Gives the pass/fail list and nothing else.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Can you check this eDM against the brief before it goes to the client?",
+      "expected_output": "Should NOT trigger build-brief. This is copy and design QA; check-against-brief owns it.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Should we even build a capability app, or is a live programme the better play?",
+      "expected_output": "Should NOT trigger build-brief as the lead skill. Whether to build at all is a strategy or decision question (agile-strategy or hgs-virtual-board). build-brief may be named as the next step once the decision is made.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Brief this build: a scheduled agent that reads my inbox every morning and emails dormant clients a check-in. I can't get into Supabase from here and I don't know the costs yet.",
+      "expected_output": "Restricted context. Interview mode proceeds, but cost and data answers become OPEN QUESTIONS, not estimates. Block 9 Stop-if fires: an agent that emails customers without a human click is BLOCKED until a draft-and-approve step replaces the send. Says plainly that Supabase could not be reached, rather than treating it as empty. Verdict BLOCKED with the owner of each open question.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Brief this build: a Supabase-backed booking tool for keynote rooms. I've only got about 20 minutes today, and I need it on Netlify by Friday.",
+      "expected_output": "Respects the operator cap: announces how many questions fit in 20 minutes, asks the highest-risk rounds first (Result, DoD, keys, cost, delivery), and turns the rest into OPEN QUESTIONS with owners rather than asking them. Pre-fills from the repo where possible. Verdict reflects the open items (REVISE or BLOCKED), and the first step is wiring the repo: branch protection, required checks, and a deploy path that cannot skip them.",
+      "files": []
+    }
+  ]
+}
