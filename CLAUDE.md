@@ -31,6 +31,15 @@ A Claude Code plugin (pane, gates, slash commands, repo templates) that lets a S
 - Do not ask the operator to continue. Stop only for: the pane look, an ambiguous GitHub org, or an action outside this repo.
 - After each step, append one line to `docs/project-status.md`: step, state (planned, implemented, verified, accepted), evidence path.
 
+## Merge policy (build stage)
+Ash's standing policy, added 21 October 2026 from the Master Build Template seed (`CLAUDE OUTPUTS/Master Build Template/Master-Build-Template_Doc_v1.md`).
+- Claude checks every build itself: tests, preview opened and screenshotted, ship-it-safely if it touches a key or spend.
+- Claude ends each build with one verdict: MERGE, FIX FIRST or NEEDS ASH, plus one line of evidence.
+- Claude merges MERGE verdicts on internal builds. Ash only sees a build when it is live with a client, touches spend or keys, or Claude says NEEDS ASH.
+- No build sits unmerged. Every PR is merged, closed, or listed in one open-PR line at the end of the session.
+
+How it meets BOB's own rules: merging a pull request is not accepting a requirement. A requirement still moves to `accepted` only with a human on the transition (`bob/schema.json`), and the five required checks still have to be green before any merge. BOB has no preview and no keys, so "preview opened" is the pane looked at and ship-it-safely does not apply until an increment adds a key or spend.
+
 ## The never-ever list (verbatim from references/build-brief/SKILL.md, the one home)
 **Repo and code**
 1. Never edit main, force-push or use `--no-verify`. *Branch protection on the remote.*
