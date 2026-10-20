@@ -1,0 +1,37 @@
+# Stage 2b: the three allow-path tests against an over-strict gate (three planted bugs: deny when not governed, never match an approval, block a round that wrote nothing). Expected: those three red.
+# 2026-10-21 09:20 AEDT · engine 2.1.304 (Claude Code)
+
+hooks/bob.test.tsx:
+(fail) the pane draws the ledger on every surface: Now, Board with a blocked chip, Evidence, and a stale flag [29.95ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "Next action: Claude: capture evidence for R-T-04"
+  Received: "Next action: Ash needs to re-approve INC-T-2 against the current brief: one new record in bob/approvals.json with brief_hash 77360d7a0dc2341501825cabe7bff3d322771709fdbe38978d0f9d667ff849de"
+(pass) Gate A refuses a write when no approval covers the active increment, naming the approval and one next action [18.02ms]
+(fail) Gate A allows a write under a matching approval [13.77ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: ""
+  Received: "BOB Gate A refused this write. bob/brief.json changed after approval AP-T-2: its hash 77360d7a0dc2 matches no approval of INC-T-2. Next action: Ash needs to re-approve INC-T-2 against the current brief: one new record in bob/approvals.json with brief_hash 77360d7a0dc2341501825cabe7bff3d322771709fdbe38978d0f9d667ff849de."
+(pass) Gate A refuses again when bob/brief.json changed by one byte after approval [12.34ms]
+(fail) Gate A idles in a repo BOB does not govern (no bob/brief.json) [12.04ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: ""
+  Received: "BOB Gate A refused this write. PLANTED: deny everything. Next action: none."
+(pass) Gate B blocks the end of a round that wrote files but gained no evidence, naming the ids; passes once evidence lands [16.15ms]
+(fail) Gate B lets a round that wrote nothing end [11.86ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: undefined
+  Received: "BOB Gate B: this round changed 0 file(s) under INC-T-2 but gained no evidence record for R-T-03, R-T-04. Evidence is one new record in bob/ledger.json evidence[] with requirement_id one of those ids, kind diff, test, artefact, screenshot, ref pointing at a file under docs/evidence/ captured from a tool result, origin tool or human, and the base fields (id, created_at, source, is_synthetic). Model prose is never evidence. Add the record and its file, or set INC-T-2 to returned and say why."
+(fail) state table: verified without evidence is rejected; accepted from a tool call is rejected; a lawful step is allowed [12.31ms]
+  AssertionError: expect(received).toContain()
+  
+  Expected: containing "R-T-04"
+  Received: "BOB Gate A refused this write. bob/brief.json changed after approval AP-T-2: its hash 77360d7a0dc2 matches no approval of INC-T-2. Next action: Ash needs to re-approve INC-T-2 against the current brief: one new record in bob/approvals.json with brief_hash 77360d7a0dc2341501825cabe7bff3d322771709fdbe38978d0f9d667ff849de."
+(pass) a preflight STOP shows on the board and in /bob status [22.01ms]
+
+ 4 pass
+ 5 fail
+Ran 9 tests across 1 file. [0.27s]

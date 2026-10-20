@@ -1,0 +1,172 @@
+{
+  "$comment": "BOB's own ledger (real records, is_synthetic false). Written by Claude by hand in Build 1 from tool results; no hook writes events yet. Shapes and states: bob/schema.json.",
+  "increments": [
+    {
+      "id": "INC-B1",
+      "title": "Build 1: prove the loop (plugin scaffold, pane, Gate A, Gate B, preflight, /bob, marketplace)",
+      "requirement_ids": [
+        "R08",
+        "R10",
+        "R12",
+        "R13"
+      ],
+      "state": "active",
+      "approval_id": "none (BOB is not self-governed in Build 1; no bob/brief.json)",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    }
+  ],
+  "runs": [
+    {
+      "id": "RUN-B1-01",
+      "increment_id": "INC-B1",
+      "state": "running",
+      "started_at": "2026-10-21T08:55:00+11:00",
+      "last_event_at": "2026-10-21T09:51:07+11:00",
+      "session_id": "7cb57087-0208-4148-b7ef-bada6c71f454",
+      "cancel_requested": false,
+      "exit_reason": null,
+      "cost_usd_reported": null,
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    }
+  ],
+  "events": [
+    {
+      "id": "EV-B1-01",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T08:55:00+11:00",
+      "origin": "runtime",
+      "type": "started",
+      "detail": "Kickoff from docs/KICKOFF.md in the Code tab; repo wiring first",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "EV-B1-02",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T09:12:00+11:00",
+      "origin": "runtime",
+      "type": "tool_result",
+      "detail": "gate.yml: five checks red against their own planted bug (pull request 1)",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "EV-B1-03",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T09:21:00+11:00",
+      "origin": "runtime",
+      "type": "tool_result",
+      "detail": "claude plugin test .: 9 pass 0 fail on engine 2.1.304, after red runs",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "EV-B1-04",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T09:21:30+11:00",
+      "origin": "runtime",
+      "type": "tool_result",
+      "detail": "scripts/preflight.test.sh: 11 passed 0 failed; each case red against a mutated preflight",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "EV-B1-05",
+      "run_id": "RUN-B1-01",
+      "at": "2026-10-21T09:51:07+11:00",
+      "origin": "human",
+      "type": "decision_requested",
+      "detail": "Ash: the BOB pane is drawn beside the chat in the Code tab",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "human",
+      "is_synthetic": false
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-B1-01",
+      "requirement_id": "R10",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-1/red-runs.md",
+      "captured_at": "2026-10-21T09:12:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-02",
+      "requirement_id": "R10",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/B1-tests-green-stage3.txt",
+      "captured_at": "2026-10-21T09:21:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-03",
+      "requirement_id": "R13",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/B1-tests-green-stage3.txt",
+      "captured_at": "2026-10-21T09:21:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-04",
+      "requirement_id": "R08",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/B1-tests-green-stage3.txt",
+      "captured_at": "2026-10-21T09:21:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-05",
+      "requirement_id": "R12",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/B1-tests-green-stage3.txt",
+      "captured_at": "2026-10-21T09:21:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-06",
+      "requirement_id": "R10",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/B1-tests-red-stage1.txt",
+      "captured_at": "2026-10-21T09:16:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-B1-07",
+      "requirement_id": "R12",
+      "kind": "artefact",
+      "ref": "docs/project-status.md",
+      "captured_at": "2026-10-21T09:51:07+11:00",
+      "origin": "human",
+      "created_at": "2026-10-21T09:51:07+11:00",
+      "source": "human",
+      "is_synthetic": false
+    }
+  ]
+}

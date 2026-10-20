@@ -1,0 +1,13 @@
+{
+  "name": "bob",
+  "owner": {
+    "name": "Step Change"
+  },
+  "plugins": [
+    {
+      "name": "bob",
+      "source": "./"
+    }
+  ],
+  "description": "BOB, the Step Change build plugin: approved briefs, gated rounds, evidence-backed verification."
+}

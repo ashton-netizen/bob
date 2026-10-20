@@ -1,0 +1,7 @@
+{
+  "name": "bob",
+  "version": "0.1.0",
+  "description": "BOB: designed-first, gated and visible builds for non-technical Steppers. A board pane read from bob/ledger.json, Gate A (no unapproved edit), Gate B (no round ends without evidence), a session preflight and /bob status.",
+  "author": { "name": "Step Change" },
+  "types": "./types/index.d.ts"
+}
