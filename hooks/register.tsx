@@ -23,6 +23,7 @@ type Engine = Any
 
 type Model = {
   governed: boolean
+  ownLedger: boolean
   schema: Any | null
   brief: Any | null
   approvals: Any[]
@@ -81,7 +82,9 @@ async function load($: Engine): Promise<Model> {
   const parseErrors: string[] = []
   const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, parseErrors)
   const governed = await exists($, 'bob/brief.json')
-  const dir = governed ? 'bob' : 'fixtures'
+  // The repo's own ledger wins over fixtures as soon as it exists, brief or not.
+  const ownLedger = governed || (await exists($, 'bob/ledger.json'))
+  const dir = ownLedger ? 'bob' : 'fixtures'
   const brief = await readJson($, `${dir}/brief.json`, parseErrors)
   const approvals = ((await readJson($, `${dir}/approvals.json`, parseErrors))?.approvals ?? []) as Any[]
   const ledgerPath = `${dir}/ledger.json`
@@ -93,7 +96,7 @@ async function load($: Engine): Promise<Model> {
     ledgerMtimeMs = null
   }
   const hash = brief ? await sha256File($, `${dir}/brief.json`) : null
-  return { governed, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, parseErrors }
+  return { governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, parseErrors }
 }
 
 // The test kit's $ has no ui.invalidate; a live session does.
@@ -251,13 +254,14 @@ function describe(m: Model, pf: Preflight | null, now: number): Board {
   }
 
   const notes: string[] = []
-  if (!m.governed) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
+  if (!m.governed && !m.ownLedger) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
+  if (!m.governed && m.ownLedger) notes.push('Not governed: no bob/brief.json, so no requirements are listed and the gates idle.')
   if (m.parseErrors.length) notes.push(...m.parseErrors)
   if (!m.schema) notes.push('bob/schema.json not found in the plugin folder')
   notes.push('No percentage is shown. No state is set from prose.')
 
   return {
-    source: m.governed ? m.ledgerPath : `${m.ledgerPath} (synthetic)`,
+    source: m.ownLedger ? m.ledgerPath : `${m.ledgerPath} (synthetic)`,
     increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : 'none active',
     approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? `${active.approval_id ?? 'none'} (fixture, not checked)` : 'none',
     task: started ? String(started.detail ?? '') : 'none recorded',

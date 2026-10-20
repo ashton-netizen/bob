@@ -27,7 +27,7 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - The test kit's `$.ui` has no `invalidate`; the module wraps the call in try/catch. The scan also refuses `typeof $.ui.invalidate`; every `$` use must be a call.
 - `atom()` references must be string literals (`{ plugin: 'bob', key: '...' }`), not a const; the scan refuses otherwise.
 - In the desktop Code tab, loading a local plugin folder went through route (a): the plugin-authoring skill's dev-mods watch (`~/.claude/dev-mods/<session id>/bob/`), which asks Ash once to turn mods on. The mod loads when the turn that wrote it ends. Whether the pane draws on this surface is recorded in docs/project-status.md, step 2.
-- The pane rendered on the Cowork surface of the desktop app. The Code tab is a different surface and has not been seen yet (kickoff step 2).
+- The pane rendered on the Cowork surface (20 October) AND on the Code tab (21 October, Ash's look). OQ1 closed.
 - Whether plugin hooks fire in Cowork cloud sessions is unproven. BOB's gates run in Claude Code, so this touches only the design room.
 - `claude plugin validate` and `claude plugin test` DO run unauthenticated in GitHub Actions (seen 21 October 2026: the plugin job reached validation and reported the planted error with no login and no key).
 - How a local plugin folder loads into a desktop Code tab session is not documented (desktop docs read 21 October 2026). The proven route is the plugin-authoring skill's dev-mods watch plus the app's turn-on-mods prompt. Kickoff step 2 tries that first and records what worked.
@@ -36,6 +36,5 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - Local hooks are skippable by one tired person; the remote required checks are the real gate. Do not call R10 or R13 enforced until gate.yml is required and has been red once.
 
 ## What the next person should do
-1. Ash needs to: say whether the BOB pane is drawn beside the chat in the Code tab (Build 1 step 2). If not, Claude switches the board to `docs/status.html` written by the same hooks (kill criteria).
-2. Claude: merge the Build 1 pull request once green, then run the marketplace install check in a fresh empty folder (step 8) and have Ash confirm the pane appears.
-3. Claude: after Build 1, write the AquaAgent adopt kickoff; do not start it in the same session.
+1. Claude: run the marketplace install check in a fresh empty folder (step 8) and have Ash confirm the pane appears in a new session there.
+2. Claude: after Build 1, write the AquaAgent adopt kickoff; do not start it in the same session.

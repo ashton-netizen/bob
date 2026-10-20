@@ -87,6 +87,7 @@ async function sha256(text: string) {
 
 type World = {
   governed: boolean
+  ownLedger?: boolean
   brief: unknown
   approvals: unknown[]
   ledger: unknown
@@ -103,6 +104,7 @@ function world(on: any, w: World) {
     if (path.endsWith(`${dir}/brief.json`)) return JSON.stringify(w.brief)
     if (path.endsWith(`${dir}/approvals.json`)) return JSON.stringify({ approvals: w.approvals })
     if (path.endsWith(`${dir}/ledger.json`)) return JSON.stringify(w.ledger)
+    if (w.ownLedger && path.endsWith('bob/ledger.json')) return JSON.stringify(w.ledger)
     return undefined
   }
   on('fs.exists', (_: unknown, e: { path: string }) => {
@@ -223,6 +225,17 @@ test('Gate A refuses again when bob/brief.json changed by one byte after approva
 test('Gate A idles in a repo BOB does not govern (no bob/brief.json)', async ($, on) => {
   await approvedWorld(on, { governed: false, approvals: [] })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))).toBe('')
+})
+
+test('a repo with bob/ledger.json but no brief shows its own ledger, not synthetic, and the gates idle', async ($, on) => {
+  await approvedWorld(on, { governed: false, ownLedger: true, approvals: [] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /ledger\.json/ }))?.text).toBe('bob/ledger.json')
+  expect(await ui.find({ type: 'Text', text: /SYNTHETIC/ })).toBe(undefined)
+  expect((await ui.find({ type: 'Text', text: /INC-T-2/ }))?.text).toContain('INC-T-2')
+  await ui.unmount()
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))).toBe('')
 })
 
