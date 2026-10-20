@@ -108,8 +108,11 @@ type World = {
   userName?: string
 }
 
-// A path relative to the repo root: the tail after a leading absolute prefix.
-const rel = (path: string) => path.replace(/^.*?\/(?=(bob|fixtures|docs)\/)/, '').replace(/^\.\//, '')
+// A path relative to the repo root: the tail from the LAST bob/, fixtures/ or
+// docs/ segment. Greedy on purpose: in CI the checkout folder is itself named
+// bob (/home/runner/work/bob/bob/...), and a lazy match stripped too little,
+// so every read missed (seen red on pull request 7, 21 October 2026).
+const rel = (path: string) => path.replace(/^.*\/(?=(bob|fixtures|docs)\/)/, '').replace(/^\.\//, '')
 
 // Wires the engine's file system and process events to one synthetic world.
 // Paths are matched by their tail so $.plugin.root can be anything, EXCEPT

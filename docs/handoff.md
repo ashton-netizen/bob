@@ -51,6 +51,7 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - `$.fs.write` from the hooks module does not pass through Gate A (Gate A is a `tool.call` hook on Edit, Write and Bash). That is why adopt may write the four bob/ files before any approval exists, and why approve may write approvals.json and ledger.json. Nothing else in the module writes files; keep it that way.
 - The SessionStart preflight hook's lines did not reach the model in the Build 2 session (BOB repo). Not seen is not broken: the pane reads the preflight through the module's own `$.process.run`. Exit 2 behaviour is still unobserved.
 - A leftover local folder `.claude/worktrees/trusting-northcutt-15fbae/` holds an old copy of the repo. Git does not track it and CI never sees it; the personal-data grep run locally over `.claude` hits its MANIFEST and test file. Leave it or park it; never delete.
+- Test doubles must be prefix-agnostic: the CI checkout is `/home/runner/work/bob/bob/`, so a path helper that matches the first `bob/` strips too little and every read misses (pull request 7, first run, 17 fails). `rel()` in hooks/bob.test.tsx matches the LAST `bob/`, `fixtures/` or `docs/` segment. A scratch copy under `<anything>/bob/bob/` reproduces the CI layout on the Mac.
 - AquaAgent's `.github/workflows/checks.yml` has SIX jobs (secrets, audit, sast, unit, db, e2e), not the five the kickoff names. All six go in the required list in Part B step 11.
 
 ## What the next person should do
