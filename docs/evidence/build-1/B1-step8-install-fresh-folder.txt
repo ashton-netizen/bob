@@ -1,0 +1,32 @@
+# Step 8: install BOB from the pushed repo into a fresh empty folder (/Users/ash/Downloads/bob-install-check) with one command.
+# 2026-10-21 09:52 AEDT · engine 2.1.304 (Claude Code)
+$ claude plugin install bob --marketplace ashton-netizen/bob --scope project
+Adding marketplace…
+SSH not configured, cloning via HTTPS: https://github.com/ashton-netizen/bob.git
+Refreshing marketplace cache (timeout: 120s)…
+Cloning repository (timeout: 120s): https://github.com/ashton-netizen/bob.git
+Clone complete, validating marketplace…
+✔ Successfully added marketplace: bob (declared in user settings)
+Installing plugin "bob@bob"...✔ Successfully installed plugin: bob@bob (scope: project)
+exit 0
+
+$ claude plugin list
+  ❯ bob@bob
+    Version: 0.1.0
+    Scope: project
+    Status: ✔ enabled
+
+  ❯ infiniteleverage@infiniteleverage
+    Version: 2.8.5
+
+$ cat .claude/settings.json
+{
+  "enabledPlugins": {
+    "bob@bob": true
+  }
+}
+
+$ claude plugin marketplace list (bob entry)
+  ❯ bob
+    Source: GitHub (ashton-netizen/bob)
+
