@@ -1,9 +1,9 @@
 # BOB · project status (living file, update in place)
 
-Last updated: 21 October 2026, first Claude Code session on the Code tab. Repo wired, every remote check seen red, Build 1 steps 1 and 3 to 7 implemented and tested; step 2 (the pane on the Code tab) awaits Ash's look.
+Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 1 merged to main (pull request 2). Pane seen by Ash on the Code tab. BOB installed from the repo into a fresh folder with one command; Ash's confirmation of the pane in a new session there is the last open check.
 
 ## Where BOB is
-- Stage: Build 1 in progress on branch `build-1`. Repo https://github.com/ashton-netizen/bob (private, Ash's choice 21 October 2026; the GitHub org `step-change` belongs to another company). No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
+- Stage: Build 1 merged to main on 21 October 2026 (pull request 2, all five required checks green). Closeout notes on branch `build-1-closeout`. Repo https://github.com/ashton-netizen/bob (private, Ash's choice 21 October 2026; the GitHub org `step-change` belongs to another company). No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
 - Architecture decided (Round 1, Ash, 20 October 2026): BOB is a Claude Code plugin (pane, gates, slash commands, repo templates) with the design phase in Cowork. The pack's custom local app and adapter are shelved as a measured fallback.
 - Login model: Team plan per Ash ("if unsure"), to be read from the account at kickoff. Mags: Mac with the Claude desktop app, Code tab untested.
 - Owner after launch: Ash. Fixes ship as plugin versions from the repo.
@@ -21,7 +21,7 @@ Last updated: 21 October 2026, first Claude Code session on the Code tab. Repo w
 REVISE. No Stop-if open. Build 1 under way. OQ1 (pane on the Code tab) CLOSED 21 October 2026, Ash's look. OQ5 (repo) CLOSED: ashton-netizen/bob.
 
 ## Next action
-Claude: create bob/ledger.json, merge Build 1 once green, run the step 8 install check from a fresh folder. Ash needs to: confirm the pane appears in a new session on that fresh folder when asked.
+Ash needs to: open a new Code tab session on `~/Downloads/bob-install-check` (Terminal: `cd ~/Downloads/bob-install-check && claude --desktop`) and say whether the BOB pane appears. Claude: on a yes, mark step 8 verified and write the AquaAgent adopt kickoff for Build 2 in a new session.
 
 ## Pane spike (OQ1), 20 October 2026
 - Throwaway mod `bob-pane-spike` written in the Cowork session container (not on the Mac, not in any repo): pane "BOB (spike)" plus `/bob-status`, synthetic fixture only, reads and writes nothing, blocks nothing.
@@ -50,3 +50,5 @@ None that stop design work. The pane spike is the first thing that can fail; its
 - Step 7 /bob status: implemented and tested (output asserted in the test: increment, task, blocker, next action, owner, stale, preflight). Not yet seen in this session: the command exists only once the mod loads at the end of this turn.
 - Step 8 marketplace: implemented (`.claude-plugin/marketplace.json`, validate passes). Install from a fresh folder not yet run; Ash confirms.
 - bob/ledger.json: verified. BOB's own ledger (real records, is_synthetic false): INC-B1 active with R08, R10, R12, R13; run RUN-B1-01; five events; seven evidence records pointing at docs/evidence/build-1/. The module now prefers bob/ledger.json over fixtures/ as soon as it exists (test seen red then green: B1-tests-red-own-ledger.txt, B1-tests-green-own-ledger.txt). No hook writes ledger events yet: Claude writes records by hand from tool results. The loaded mod in this session was updated; the preflight reports the ledger present.
+- Merge: verified. Pull request 2 merged into main at e3b7a6e with all five required checks green (run 39511124419). main now carries Build 1; every later change goes branch, pull request, merge.
+- Step 8 marketplace install: implemented and tested from the CLI; Ash's confirmation pending. In the fresh empty folder `~/Downloads/bob-install-check`, `claude plugin install bob --marketplace ashton-netizen/bob --scope project` (engine 2.1.304) added the marketplace in user settings, installed bob@bob 0.1.0 enabled at project scope, and wrote `.claude/settings.json` with `enabledPlugins: { "bob@bob": true }`. Evidence: docs/evidence/build-1/B1-step8-install-fresh-folder.txt. The pane appearing in the next session on that folder is Ash's check (I CHECK THIS).

@@ -20,6 +20,11 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - The spike's own test is archived (`plugin-spike/hooks/pane.test.tsx.archived`): `claude plugin test .` collects every test under the repo and the root plugin answers the same pane id, so the two cannot share one test tree. Its last green run is in docs/evidence/build-1.
 - MANIFEST.json describes the start pack as shipped; after Build 1 `check_manifest.py` reports drift by design. Do not regenerate it to make the check green; it is the pack's record, not the repo's.
 
+## What is live (21 October 2026)
+- Plugin `bob` 0.1.0 on main of https://github.com/ashton-netizen/bob (private). Installed: in this session's dev-mods folder (temporary, this session only) and at project scope in `~/Downloads/bob-install-check` from the marketplace. No scheduled jobs. No keys. Fixtures under `fixtures/` are synthetic and never gate; BOB's own records are in `bob/ledger.json` with `is_synthetic: false`.
+- Rollback: in a repo, set `"bob@bob": false` in `.claude/settings.json` enabledPlugins, or `claude plugin uninstall bob@bob`; to pin, install a tagged version once one exists (`claude plugin tag` is the release step). Not yet rehearsed.
+- The install line for a Stepper: `claude plugin install bob --marketplace ashton-netizen/bob --scope project` in the repo folder, or on the desktop + next to the prompt box, Add plugins, marketplace `ashton-netizen/bob`. The repo is private, so the person needs GitHub access to it and git credentials on their Mac (the install clones over HTTPS).
+
 ## Known landmines
 - TWO ENGINES ON ASH'S MAC. `claude` on PATH is 2.1.287 (Homebrew); the desktop app runs its own 2.1.304 at `~/Library/Application Support/Claude/claude-code/2.1.304/<hash>/claude.app/Contents/MacOS/claude`. The pane's Text `weight` prop is refused by 2.1.287, so `claude plugin test` from a Terminal fails while the same test passes in the app's engine. Version floor: 2.1.304. Run validate and test with the bundled binary, or update Homebrew's claude.
 - `gitleaks/gitleaks-action@v2` needs `permissions: pull-requests: read` on its job or it dies with a 403 before scanning (seen red for the wrong reason on the first run).
@@ -33,6 +38,7 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - How a local plugin folder loads into a desktop Code tab session is not documented (desktop docs read 21 October 2026). The proven route is the plugin-authoring skill's dev-mods watch plus the app's turn-on-mods prompt. Kickoff step 2 tries that first and records what worked.
 - Whether exit 2 from a SessionStart hook blocks or only warns depends on the installed version (scripts/preflight.sh). Record what is observed.
 - Ash's desktop app shows the earlier layout: the new-session folder picker lists only previously opened folders and the docs name no add or browse control for it. Opening a fresh folder needs `claude --desktop` from Terminal (documented) or Add folder inside a running session. For Mags this matters: observe at the pilot whether a folder opened once via `claude --desktop` then appears in her picker, and record it here.
+- Nothing writes ledger events or evidence records automatically in Build 1. Claude writes them by hand from tool results (ids, refs under docs/evidence/). Evidence capture from tool results is Build 2 work; until then a run in bob/ledger.json left `running` shows as stale after two minutes, which is truthful.
 - Local hooks are skippable by one tired person; the remote required checks are the real gate. Do not call R10 or R13 enforced until gate.yml is required and has been red once.
 
 ## What the next person should do
