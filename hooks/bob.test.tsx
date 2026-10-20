@@ -38,7 +38,13 @@ const SCHEMA = {
   },
   increment: { states: ['proposed', 'approved', 'active', 'done', 'returned'] },
   run: { states: ['queued', 'running', 'verifying', 'completed'] },
-  evidence: { kinds: ['diff', 'test', 'artefact', 'screenshot'] },
+  evidence: { kinds: ['diff', 'test', 'artefact', 'screenshot'], origin_values: ['tool', 'human'] },
+  // Mirrors bob/schema.json's source dimensions: adopt refuses a source whose
+  // access or processing is not one of these.
+  source: {
+    access_values: ['available', 'permission_needed', 'missing', 'inaccessible'],
+    processing_values: ['queued', 'reading', 'extracted', 'partial', 'failed', 'unsupported'],
+  },
 }
 
 const req = (id: string, text: string, state: string, evidence_ids: string[] = []) => ({
@@ -93,22 +99,42 @@ type World = {
   ledger: unknown
   ledgerMtimeMs: number
   preflight?: { exitCode: number; stdout: string; stderr: string }
+  // Repo files by relative path (the proposal, the status file, and whatever
+  // the module writes). A file here wins over the brief/approvals/ledger above.
+  files?: Record<string, string>
+  // Every $.fs.write the module made, in order.
+  writes?: { path: string; text: string }[]
+  // What `git config user.name` answers.
+  userName?: string
 }
 
+// A path relative to the repo root: the tail from the LAST bob/, fixtures/ or
+// docs/ segment. Greedy on purpose: in CI the checkout folder is itself named
+// bob (/home/runner/work/bob/bob/...), and a lazy match stripped too little,
+// so every read missed (seen red on pull request 7, 21 October 2026).
+const rel = (path: string) => path.replace(/^.*\/(?=(bob|fixtures|docs)\/)/, '').replace(/^\.\//, '')
+
 // Wires the engine's file system and process events to one synthetic world.
-// Paths are matched by their tail so $.plugin.root can be anything.
+// Paths are matched by their tail so $.plugin.root can be anything, EXCEPT
+// bob/schema.json, which is served only under a plugin-root prefix: a bare
+// repo-relative read of it is a defect (the adopted repo never gets a copy).
 function world(on: any, w: World) {
+  w.files = w.files ?? {}
+  w.writes = w.writes ?? []
+  const governed = () => w.governed || 'bob/brief.json' in w.files!
   const text = (path: string): string | undefined => {
-    const dir = w.governed ? 'bob' : 'fixtures'
-    if (path.endsWith('bob/schema.json')) return JSON.stringify(SCHEMA)
-    if (path.endsWith(`${dir}/brief.json`)) return JSON.stringify(w.brief)
-    if (path.endsWith(`${dir}/approvals.json`)) return JSON.stringify({ approvals: w.approvals })
-    if (path.endsWith(`${dir}/ledger.json`)) return JSON.stringify(w.ledger)
-    if (w.ownLedger && path.endsWith('bob/ledger.json')) return JSON.stringify(w.ledger)
+    const r = rel(path)
+    if (r in w.files!) return w.files![r]
+    if (path.endsWith('bob/schema.json')) return path === 'bob/schema.json' ? undefined : JSON.stringify(SCHEMA)
+    const dir = governed() ? 'bob' : 'fixtures'
+    if (r === `${dir}/brief.json`) return JSON.stringify(w.brief)
+    if (r === `${dir}/approvals.json`) return JSON.stringify({ approvals: w.approvals })
+    if (r === `${dir}/ledger.json`) return JSON.stringify(w.ledger)
+    if (w.ownLedger && r === 'bob/ledger.json') return JSON.stringify(w.ledger)
     return undefined
   }
   on('fs.exists', (_: unknown, e: { path: string }) => {
-    if (e.path.endsWith('bob/brief.json')) return { value: w.governed }
+    if (rel(e.path) === 'bob/brief.json') return { value: governed() }
     return { value: text(e.path) !== undefined }
   })
   on('fs.read', (_: unknown, e: { path: string; as: string }) => {
@@ -116,19 +142,29 @@ function world(on: any, w: World) {
     if (t === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: e.as === 'bytes' ? { base64: btoa(unescape(encodeURIComponent(t))) } : t }
   })
+  on('fs.write', (_: unknown, e: { path: string; text: string }) => {
+    w.writes!.push({ path: rel(e.path), text: e.text })
+    w.files![rel(e.path)] = e.text
+    return { value: undefined }
+  })
   on('fs.stat', (_: unknown, e: { path: string }) => {
     if (text(e.path) === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: { kind: 'file', size: 1, mtimeMs: w.ledgerMtimeMs, isLink: false } }
   })
-  on('process.run', () => ({
-    value: {
-      exitCode: w.preflight?.exitCode ?? 0,
-      stdout: w.preflight?.stdout ?? 'preflight · clear\n',
-      stderr: w.preflight?.stderr ?? '',
-      isStdoutTruncated: false,
-      isStderrTruncated: false,
-    },
-  }))
+  on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
+    if (e.argv[0] === 'git' && e.argv.includes('user.name')) {
+      return { value: { exitCode: 0, stdout: `${w.userName ?? 'Test Approver'}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    return {
+      value: {
+        exitCode: w.preflight?.exitCode ?? 0,
+        stdout: w.preflight?.stdout ?? 'preflight · clear\n',
+        stderr: w.preflight?.stderr ?? '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    }
+  })
   on('command.register', () => ({ value: { command: 'bob' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
@@ -299,4 +335,234 @@ test('a preflight STOP shows on the board and in /bob status', async ($, on) => 
   expect(status.text).toContain('INC-T-2')
   expect(status.text).toContain('Next action')
   expect(status.text).toContain('STOP')
+})
+
+// ---------------------------------------------------------------------------
+// Build 2: /bob adopt and /bob approve. The proposal below is test data for an
+// adopted repo, so its records carry is_synthetic FALSE on purpose: adopt must
+// refuse synthetic records, and these tests prove the real shape passes.
+// ---------------------------------------------------------------------------
+
+const real = (source: string) => ({ created_at: T, source, is_synthetic: false })
+const PROPOSAL_PATH = 'docs/evidence/adopt/adopt-proposal.json'
+
+const areq = (id: string, text: string, state: string, evidence_ids: string[] = []) => ({
+  id, priority: 'MUST', text, check: `check ${id}`, state, evidence_ids, source_ids: ['S-P-01'], ...real('ai'),
+})
+const aev = (id: string, requirement_id: string) => ({
+  id, requirement_id, kind: 'test', ref: `docs/evidence/adopt/${id}.txt`, captured_at: T, origin: 'tool', ...real('tool'),
+})
+
+function proposal() {
+  return {
+    brief: {
+      project: { id: 'P-01', name: 'adopted repo', ...real('ai') },
+      requirements: [
+        areq('R-P-00', 'repo is governed', 'not_assessed'),
+        areq('R-P-01', 'has evidence', 'verified', ['E-P-01']),
+        areq('R-P-02', 'only prose', 'reported'),
+      ],
+    },
+    ledger: {
+      increments: [
+        { id: 'INC-00', title: 'adopt', requirement_ids: ['R-P-00'], state: 'proposed', approval_id: null, ...real('ai') },
+        { id: 'INC-01', title: 'first real increment', requirement_ids: ['R-P-02'], state: 'proposed', approval_id: null, ...real('ai') },
+      ],
+      runs: [],
+      events: [],
+      evidence: [aev('E-P-01', 'R-P-01')],
+    },
+    sources: [
+      { id: 'S-P-01', name: 'the plan', type: 'markdown', version: '1', fingerprint: 'f', scope: 'project', access: 'available', processing: 'extracted', knowledge_use: 'mapped', ...real('ai') },
+    ],
+  }
+}
+
+// An ungoverned repo holding only the proposal file.
+async function adoptWorld(on: any, p: unknown = proposal(), extraFiles: Record<string, string> = {}): Promise<World> {
+  const w: World = {
+    governed: false,
+    brief: BRIEF,
+    approvals: [],
+    ledger: LEDGER,
+    ledgerMtimeMs: LAST_EVENT_MS + 60_000,
+    files: { [PROPOSAL_PATH]: JSON.stringify(p), ...extraFiles },
+  }
+  world(on, w)
+  return w
+}
+
+const adopt = async ($: any) => String((await $.command.run({ command: 'bob', args: 'adopt' })).text ?? '')
+const approve = async ($: any, id: string) => String((await $.command.run({ command: 'bob', args: `approve ${id}` })).text ?? '')
+const bobWrites = (w: World) => w.writes!.filter(x => x.path.startsWith('bob/')).map(x => x.path)
+
+test('adopt refuses a requirement verified with no evidence record, naming the id, and writes nothing', async ($, on) => {
+  const p = proposal()
+  p.ledger.evidence = []
+  const w = await adoptWorld(on, p)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('R-P-01')
+  expect(out).toContain('evidence')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('adopt refuses any record missing id, created_at, source or is_synthetic, naming where', async ($, on) => {
+  const p = proposal() as any
+  delete p.sources[0].created_at
+  const w = await adoptWorld(on, p)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('created_at')
+  expect(out).toContain('S-P-01')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('adopt refuses is_synthetic true: fixtures/ is the only home for synthetic records', async ($, on) => {
+  const p = proposal() as any
+  p.ledger.evidence[0].is_synthetic = true
+  const w = await adoptWorld(on, p)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('is_synthetic')
+  expect(out).toContain('E-P-01')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('adopt refuses a source without access and processing from bob/schema.json', async ($, on) => {
+  const p = proposal() as any
+  delete p.sources[0].processing
+  const w = await adoptWorld(on, p)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('processing')
+  expect(out).toContain('S-P-01')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('adopt refuses when a bob/ file already exists', async ($, on) => {
+  const w = await adoptWorld(on, proposal(), { 'bob/ledger.json': JSON.stringify(LEDGER) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('bob/ledger.json')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('adopt writes ledger, sources, empty approvals, then brief.json LAST, then one status line; Gate A engages only after', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  // Ungoverned before adopt: a write passes.
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))).toBe('')
+
+  const out = await adopt($)
+  expect(out).toContain('wrote')
+  expect(bobWrites(w)).toEqual(['bob/ledger.json', 'bob/sources.json', 'bob/approvals.json', 'bob/brief.json'])
+  expect(JSON.parse(w.files!['bob/approvals.json'])).toEqual({ approvals: [] })
+  expect(JSON.parse(w.files!['bob/brief.json']).requirements.map((r: any) => r.state)).toEqual(['not_assessed', 'verified', 'reported'])
+  expect(JSON.parse(w.files!['bob/ledger.json']).increments.map((i: any) => i.state)).toEqual(['proposed', 'proposed'])
+
+  // The status line is the last write and the file was created.
+  const last = w.writes![w.writes!.length - 1]
+  expect(last.path).toBe('docs/project-status.md')
+  expect(last.text).toContain('adopt')
+  expect(last.text).toContain('INC-00')
+
+  // Governed now: no increment is active, so Gate A refuses and points at /bob approve.
+  const denied = said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))
+  expect(denied).toContain('Gate A')
+  expect(denied).toContain('/bob approve')
+})
+
+test('adopt appends to an existing docs/project-status.md rather than replacing it', async ($, on) => {
+  const w = await adoptWorld(on, proposal(), { 'docs/project-status.md': '# existing status\n\n- older line\n' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  const status = w.files!['docs/project-status.md']
+  expect(status).toContain('# existing status')
+  expect(status).toContain('older line')
+  expect(status).toContain('INC-00')
+})
+
+test('approve appends one immutable human record with the brief hash and the git approver, sets the increment active, and Gate A then allows a write', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  const writesBefore = w.writes!.length
+
+  const out = await approve($, 'INC-00')
+  expect(out).toContain('INC-00')
+  expect(out).toContain('active')
+
+  const approvals = JSON.parse(w.files!['bob/approvals.json']).approvals
+  expect(approvals.length).toBe(1)
+  const a = approvals[0]
+  expect(String(a.id).startsWith('AP-')).toBe(true)
+  expect(a.brief_hash).toBe(await sha256(w.files!['bob/brief.json']))
+  expect(a.scope_increment_ids).toEqual(['INC-00'])
+  expect(a.approver).toBe('Test Approver')
+  expect(a.source).toBe('human')
+  expect(a.is_synthetic).toBe(false)
+  expect(typeof a.approved_at).toBe('string')
+  expect(typeof a.created_at).toBe('string')
+
+  const inc = JSON.parse(w.files!['bob/ledger.json']).increments.find((i: any) => i.id === 'INC-00')
+  expect(inc.state).toBe('active')
+  expect(inc.approval_id).toBe(a.id)
+
+  // approve wrote only approvals and ledger, and ran no git write.
+  expect(w.writes!.slice(writesBefore).map(x => x.path)).toEqual(['bob/approvals.json', 'bob/ledger.json'])
+
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+})
+
+test('approve refuses a duplicate for the same increment at the same hash, refuses while another increment is active, and refuses an unknown id', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  await approve($, 'INC-00')
+  const n = w.writes!.length
+
+  const dup = await approve($, 'INC-00')
+  expect(dup).toContain('refused')
+  expect(dup).toContain('INC-00')
+  expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(1)
+
+  const second = await approve($, 'INC-01')
+  expect(second).toContain('refused')
+  expect(second).toContain('INC-00')
+  expect(second).toContain('active')
+
+  const unknown = await approve($, 'INC-99')
+  expect(unknown).toContain('refused')
+  expect(unknown).toContain('INC-99')
+
+  expect(w.writes!.length).toBe(n)
+})
+
+test('approve refuses when the brief changed after adopt only by re-hashing: a second approval at a new hash is a new record, never an edit', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  await approve($, 'INC-00')
+  const first = JSON.parse(w.files!['bob/approvals.json']).approvals[0]
+
+  // The brief changes (a late requirement); Gate A refuses; a re-approval appends.
+  const brief = JSON.parse(w.files!['bob/brief.json'])
+  brief.requirements.push(areq('R-P-03', 'late add', 'not_assessed'))
+  w.files!['bob/brief.json'] = JSON.stringify(brief)
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('changed')
+
+  const out = await approve($, 'INC-00')
+  expect(out).toContain('INC-00')
+  const approvals = JSON.parse(w.files!['bob/approvals.json']).approvals
+  expect(approvals.length).toBe(2)
+  expect(approvals[0]).toEqual(first)
+  expect(approvals[1].brief_hash).toBe(await sha256(w.files!['bob/brief.json']))
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
 })

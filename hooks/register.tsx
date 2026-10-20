@@ -123,7 +123,14 @@ function approvalVerdict(m: Model): Verdict {
   if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>)' }
   if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to run /bob adopt, or restore the files from git' }
   const active = activeIncrement(m)
-  if (!active) return { ok: false, reason: 'no increment in bob/ledger.json has state active', next: 'Ash needs to approve an increment (a record in bob/approvals.json) and set its state to active' }
+  if (!active) {
+    const proposed = ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
+    return {
+      ok: false,
+      reason: 'no increment in bob/ledger.json has state active',
+      next: `Ash needs to type /bob approve ${proposed?.id ?? '<increment id>'} (the only writer of bob/approvals.json)`,
+    }
+  }
   const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
   const match = inScope.find(a => a.brief_hash === m.hash)
   if (match) return { ok: true, note: `${active.id} approved by ${match.id}` }
@@ -132,14 +139,232 @@ function approvalVerdict(m: Model): Verdict {
     return {
       ok: false,
       reason: `bob/brief.json changed after approval ${ids}: its hash ${short(m.hash)} matches no approval of ${active.id}`,
-      next: `Ash needs to re-approve ${active.id} against the current brief: one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'}`,
+      next: `Ash needs to re-approve ${active.id} against the current brief by typing /bob approve ${active.id} (one new record at brief_hash ${m.hash ?? 'unknown'})`,
     }
   }
   return {
     ok: false,
     reason: `no approval record in bob/approvals.json covers ${active.id} at brief hash ${short(m.hash)}`,
-    next: `Ash needs to approve ${active.id}: one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'} and scope_increment_ids ["${active.id}"]`,
+    next: `Ash needs to type /bob approve ${active.id} (one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'})`,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Build 2: /bob adopt and /bob approve.
+//
+// adopt reads docs/evidence/adopt/adopt-proposal.json, validates every record
+// against bob/schema.json in the plugin folder, and writes the bob/ files with
+// bob/brief.json LAST, so Gate A engages only once every file exists. It never
+// commits: committing stays a Gate A decision.
+//
+// approve is typed by a person and is the only writer of bob/approvals.json.
+// It appends one immutable record and sets the named increment active. A
+// plugin, the SDK or a scheduled prompt cannot approve.
+// ---------------------------------------------------------------------------
+
+const PROPOSAL_PATH = 'docs/evidence/adopt/adopt-proposal.json'
+const BOB_FILES = ['bob/brief.json', 'bob/ledger.json', 'bob/sources.json', 'bob/approvals.json'] as const
+const NON_HUMAN_ORIGINS = ['plugin', 'sdk', 'task-notification', 'scheduled', 'auto-continuation', 'coordinator', 'observer', 'observer-activity', 'peer-send-message', 'projects-relay', 'channel']
+
+const stamp = () => new Date().toISOString()
+const pretty = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`
+
+// Every record carries id, created_at, source (a schema value) and is_synthetic
+// false. The proposal is for a real repo: fixtures/ is the only home for
+// synthetic records.
+function baseRefusals(schema: Any, rec: Any, where: string): string[] {
+  const out: string[] = []
+  const required: string[] = schema?.record_base?.required ?? ['id', 'created_at', 'source', 'is_synthetic']
+  const sources: string[] = schema?.record_base?.source_values ?? ['human', 'ai', 'tool']
+  if (!rec || typeof rec !== 'object') return [`${where}: not a record`]
+  const label = `${where} ${rec.id ?? '(no id)'}`
+  for (const f of required) if (!(f in rec)) out.push(`${label}: missing ${f}`)
+  if ('source' in rec && !sources.includes(rec.source)) out.push(`${label}: source "${rec.source}" is not one of ${sources.join(', ')}`)
+  if ('is_synthetic' in rec && rec.is_synthetic !== false) out.push(`${label}: is_synthetic must be false in a real repo (fixtures/ is the only home for synthetic records)`)
+  return out
+}
+
+function proposalRefusals(schema: Any, p: Any): string[] {
+  const out: string[] = []
+  if (!p || typeof p !== 'object') return ['the proposal is not a JSON object']
+  const brief = p.brief, ledger = p.ledger, sources = p.sources
+  if (!brief || typeof brief !== 'object') out.push('proposal.brief is missing')
+  if (!ledger || typeof ledger !== 'object') out.push('proposal.ledger is missing')
+  if (!Array.isArray(sources)) out.push('proposal.sources is missing or not an array')
+  if (out.length) return out
+  if (Array.isArray(p.approvals) && p.approvals.length) out.push('proposal.approvals must be empty: /bob approve is the only writer of bob/approvals.json')
+
+  const req = schema?.requirement ?? {}
+  const states: string[] = req.states ?? []
+  const priorities: string[] = req.priority_values ?? []
+  const kinds: string[] = schema?.evidence?.kinds ?? []
+  const evOrigins: string[] = schema?.evidence?.origin_values ?? []
+  const evidence: Any[] = Array.isArray(ledger.evidence) ? ledger.evidence : []
+
+  if (brief.project) out.push(...baseRefusals(schema, brief.project, 'brief.project'))
+  const reqs: Any[] = Array.isArray(brief.requirements) ? brief.requirements : []
+  if (!reqs.length) out.push('brief.requirements is empty')
+  for (const r of reqs) {
+    out.push(...baseRefusals(schema, r, 'requirement'))
+    if (!states.includes(r.state)) out.push(`requirement ${r.id}: state "${r.state}" is not a state in bob/schema.json`)
+    if (priorities.length && !priorities.includes(r.priority)) out.push(`requirement ${r.id}: priority "${r.priority}" is not one of ${priorities.join(', ')}`)
+    if (['verified', 'accepted'].includes(r.state)) {
+      const backed = evidence.some(ev => ev.requirement_id === r.id && kinds.includes(ev.kind))
+      if (!backed) out.push(`requirement ${r.id}: state ${r.state} needs an evidence record in ledger.evidence (kind ${kinds.join(', ')}) and none exists. Model prose is never evidence; use reported or not_assessed`)
+    }
+  }
+  for (const key of ['decisions', 'assumptions', 'outputs']) {
+    for (const rec of (Array.isArray(brief[key]) ? brief[key] : []) as Any[]) out.push(...baseRefusals(schema, rec, `brief.${key}`))
+  }
+
+  const incStates: string[] = schema?.increment?.states ?? []
+  for (const inc of (Array.isArray(ledger.increments) ? ledger.increments : []) as Any[]) {
+    out.push(...baseRefusals(schema, inc, 'increment'))
+    if (!incStates.includes(inc.state)) out.push(`increment ${inc.id}: state "${inc.state}" is not a state in bob/schema.json`)
+    if (inc.state === 'active') out.push(`increment ${inc.id}: adopt cannot propose an active increment; approval is /bob approve`)
+    const reqIds = new Set(reqs.map(r => String(r.id)))
+    for (const id of (inc.requirement_ids ?? []) as string[]) if (!reqIds.has(id)) out.push(`increment ${inc.id}: requirement ${id} is not in brief.requirements`)
+  }
+  const runStates: string[] = schema?.run?.states ?? []
+  for (const run of (Array.isArray(ledger.runs) ? ledger.runs : []) as Any[]) {
+    out.push(...baseRefusals(schema, run, 'run'))
+    if (!runStates.includes(run.state)) out.push(`run ${run.id}: state "${run.state}" is not a state in bob/schema.json`)
+  }
+  for (const ev of (Array.isArray(ledger.events) ? ledger.events : []) as Any[]) out.push(...baseRefusals(schema, ev, 'event'))
+  for (const ev of evidence) {
+    out.push(...baseRefusals(schema, ev, 'evidence'))
+    if (!kinds.includes(ev.kind)) out.push(`evidence ${ev.id}: kind "${ev.kind}" is not one of ${kinds.join(', ')}`)
+    if (evOrigins.length && !evOrigins.includes(ev.origin)) out.push(`evidence ${ev.id}: origin "${ev.origin}" is not one of ${evOrigins.join(', ')}`)
+    if (!ev.ref) out.push(`evidence ${ev.id}: ref is empty; evidence points at a file`)
+  }
+
+  const access: string[] = schema?.source?.access_values ?? []
+  const processing: string[] = schema?.source?.processing_values ?? []
+  for (const s of sources as Any[]) {
+    out.push(...baseRefusals(schema, s, 'source'))
+    if (!access.includes(s.access)) out.push(`source ${s.id}: access "${s.access ?? '(missing)'}" is not one of ${access.join(', ')}`)
+    if (!processing.includes(s.processing)) out.push(`source ${s.id}: processing "${s.processing ?? '(missing)'}" is not one of ${processing.join(', ')}`)
+  }
+  return out
+}
+
+const refusedText = (what: string, reasons: string[]) =>
+  [`BOB ${what} refused. Nothing was written.`, ...reasons.map(r => `- ${r}`), `Next action: Claude: fix the proposal at ${PROPOSAL_PATH} and run /bob ${what} again.`].join('\n')
+
+async function adopt($: Engine): Promise<string> {
+  const errors: string[] = []
+  const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, errors)
+  if (!schema) return refusedText('adopt', ['bob/schema.json is missing or does not parse in the plugin folder. Ash needs to reinstall BOB'])
+
+  const existing: string[] = []
+  for (const f of BOB_FILES) if (await exists($, f)) existing.push(f)
+  if (existing.length) return refusedText('adopt', existing.map(f => `${f} already exists; adopt never overwrites a governed repo's files`))
+
+  const text = await readText($, PROPOSAL_PATH)
+  if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found. The bob-adopt skill writes it`])
+  let p: Any
+  try {
+    p = JSON.parse(text)
+  } catch {
+    return refusedText('adopt', [`${PROPOSAL_PATH} does not parse as JSON`])
+  }
+  const reasons = proposalRefusals(schema, p)
+  if (reasons.length) return refusedText('adopt', reasons)
+
+  const brief: Any = {
+    $comment: 'Written by /bob adopt from docs/evidence/adopt/adopt-proposal.json. States and transitions: bob/schema.json in the BOB plugin. No state here comes from prose.',
+    project: p.brief.project ?? null,
+    requirements: p.brief.requirements,
+    decisions: p.brief.decisions ?? [],
+    assumptions: p.brief.assumptions ?? [],
+    outputs: p.brief.outputs ?? [],
+  }
+  const ledger: Any = {
+    $comment: 'Written by /bob adopt. Evidence records are written by hand from tool results; model prose is never evidence.',
+    increments: p.ledger.increments ?? [],
+    runs: p.ledger.runs ?? [],
+    events: p.ledger.events ?? [],
+    evidence: p.ledger.evidence ?? [],
+  }
+  const sources: Any = { $comment: 'Written by /bob adopt. access and processing say what was observed; a source nobody opened is never extracted.', sources: p.sources }
+
+  const wrote: string[] = []
+  await $.fs.write('bob/ledger.json', pretty(ledger)); wrote.push('bob/ledger.json')
+  await $.fs.write('bob/sources.json', pretty(sources)); wrote.push('bob/sources.json')
+  await $.fs.write('bob/approvals.json', pretty({ approvals: [] })); wrote.push('bob/approvals.json')
+  // Last on purpose: Gate A engages the moment this file exists.
+  await $.fs.write('bob/brief.json', pretty(brief)); wrote.push('bob/brief.json')
+
+  const incIds = (ledger.increments as Any[]).map(i => `${i.id} ${i.state}`).join(', ')
+  const name = String(p.brief.project?.name ?? 'this repo')
+  const line = `- /bob adopt, ${stamp()}: implemented. bob/brief.json (${(brief.requirements as Any[]).length} requirements), bob/ledger.json (${incIds || 'no increments'}; ${(ledger.evidence as Any[]).length} evidence records), bob/sources.json (${(p.sources as Any[]).length} sources), bob/approvals.json (empty). Evidence: ${PROPOSAL_PATH}. Ash needs to: type /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`
+  const current = await readText($, 'docs/project-status.md')
+  const status = current === null
+    ? `# ${name} · project status (living file, update in place)\n\nGoverned by BOB. States and transitions: bob/schema.json in the BOB plugin.\n\n## Build log (one line per step: step, state, evidence)\n${line}\n`
+    : `${current.replace(/\s*$/, '')}\n${line}\n`
+  await $.fs.write('docs/project-status.md', status); wrote.push(`docs/project-status.md (${current === null ? 'created' : 'one line appended'})`)
+
+  return [
+    `BOB adopt: wrote ${wrote.length} files, refused 0.`,
+    ...wrote.map(w => `- wrote ${w}`),
+    `Gate A is now engaged: no increment is active, so every write is refused until a person types /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`,
+    'Nothing was committed: committing is a Gate A decision in the session.',
+  ].join('\n')
+}
+
+async function approve($: Engine, idArg: string, originKind: string | undefined): Promise<string> {
+  const id = idArg.trim()
+  if (!id) return refusedText('approve', ['no increment id given. Usage: /bob approve <increment id>'])
+  if (originKind && NON_HUMAN_ORIGINS.includes(originKind)) return refusedText('approve', [`this command came from "${originKind}", not a person. Only a person at the prompt approves`])
+
+  const m = await load($)
+  if (!m.governed) return refusedText('approve', ['this repo is not governed (no bob/brief.json). Run /bob adopt first'])
+  if (!m.ledger || !m.brief) return refusedText('approve', ['bob/ledger.json or bob/brief.json is missing or does not parse'])
+  if (m.parseErrors.length) return refusedText('approve', m.parseErrors)
+  if (!m.hash) return refusedText('approve', ['bob/brief.json could not be hashed'])
+
+  const increments: Any[] = m.ledger.increments ?? []
+  const inc = increments.find(i => i.id === id)
+  if (!inc) return refusedText('approve', [`${id} is not an increment in bob/ledger.json (${increments.map(i => i.id).join(', ') || 'none'})`])
+  const other = increments.find(i => i.state === 'active' && i.id !== id)
+  if (other) return refusedText('approve', [`${other.id} is active; one increment at a time. Close ${other.id} (done or returned) before approving ${id}`])
+  if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
+  const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && a.brief_hash === m.hash)
+  if (dup) return refusedText('approve', [`${id} is already approved by ${dup.id} at the current brief hash ${short(m.hash)}; approvals are immutable and never duplicated`])
+
+  let approver = ''
+  try {
+    const ran = await $.process.run(['git', 'config', 'user.name'])
+    approver = String(ran.stdout ?? '').trim()
+  } catch {
+    approver = ''
+  }
+  if (!approver) return refusedText('approve', ['git config user.name is empty, so the approver cannot be named. Ash needs to run: git config user.name "<name>"'])
+
+  const n = m.approvals.length + 1
+  const now = stamp()
+  const record = {
+    id: `AP-${String(n).padStart(2, '0')}`,
+    brief_hash: m.hash,
+    scope_increment_ids: [id],
+    approver,
+    approved_at: now,
+    created_at: now,
+    source: 'human',
+    is_synthetic: false,
+  }
+  const approvalsFile = (await readJson($, 'bob/approvals.json', [])) ?? {}
+  await $.fs.write('bob/approvals.json', pretty({ ...approvalsFile, approvals: [...m.approvals, record] }))
+
+  const ledger = { ...m.ledger, increments: increments.map(i => (i.id === id ? { ...i, state: 'active', approval_id: record.id } : i)) }
+  await $.fs.write('bob/ledger.json', pretty(ledger))
+  redraw($)
+
+  return [
+    `BOB approve: ${record.id} written to bob/approvals.json by ${approver} for ${id} at brief hash ${short(m.hash)}.`,
+    `${id} is now active (approved, then active). Gate A allows writes under it; Gate B requires evidence for ${(inc.requirement_ids ?? []).join(', ') || 'its requirement ids'} before a round that writes can end.`,
+    'Nothing was committed.',
+  ].join('\n')
 }
 
 const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.`
@@ -304,7 +529,7 @@ const colour = (r: Row) =>
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'bob', description: 'BOB: status (default) or open the board pane' })
+    await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, adopt this repo from a proposal, or approve <increment id> (a person only)' })
 
     try {
       const ran = await $.process.run(['bash', `${$.plugin.root}/scripts/preflight.sh`])
@@ -333,10 +558,17 @@ export const register: Register = on => {
 
   on('command.run', { command: 'bob' }, async ($, e) => {
     const arg = (e.args ?? '').trim()
-    if (arg === 'open') {
+    const [word, ...rest] = arg.split(/\s+/)
+    if (word === 'open') {
       const placed = await $.ui.open({ id: PANE, title: TITLE })
       return { text: placed.isPlaced ? 'BOB board pane opened.' : 'BOB board pane requested, but this surface did not seat it.' }
     }
+    if (word === 'adopt') {
+      const text = await adopt($)
+      redraw($)
+      return { text }
+    }
+    if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
     const m = await load($)
     return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
   })

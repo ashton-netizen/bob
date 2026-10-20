@@ -1,0 +1,66 @@
+preflight.test · clear, no git · FAILED: expected exit 0 and 'preflight · clear'; got exit 2
+    preflight · no git repo yet (first session). The kickoff initialises it.
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · branch is main with 2 commits · red as expected (exit 2, STOP line names: on main with 2 commits)
+preflight.test · branch message names no build · FAILED: expected 'git switch -c' without 'build-1'
+    preflight · STOP · on main with 2 commits. Create a branch first: git switch -c build-1
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · clear, main with its first commit · FAILED: expected exit 0 and 'preflight · clear'; got exit 2
+    preflight · branch main (1 commits)
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · clear, on build-1 · FAILED: expected exit 0 and 'preflight · clear'; got exit 2
+    preflight · branch build-1 (2 commits)
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · plan file missing · red as expected (exit 2, STOP line names: missing docs/product/product-plan.md)
+preflight.test · no ledger and no fixture · red as expected (exit 2, STOP line names: no ledger and no fixture)
+preflight.test · placeholder key YOUR_ · red as expected (exit 2, STOP line names: FAKE_SERVICE_KEY has a placeholder value)
+preflight.test · empty key value · red as expected (exit 2, STOP line names: FAKE_SERVICE_KEY has a placeholder value)
+preflight.test · dots placeholder in .env.local · red as expected (exit 2, STOP line names: FAKE_SERVICE_KEY has a placeholder value)
+preflight.test · key present by name only · FAILED (exit 2)
+    preflight · no git repo yet (first session). The kickoff initialises it.
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · .env: FAKE_SERVICE_KEY present
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · adopted shape, schema from the plugin · FAILED: expected exit 0, clear, and 'schema.json (plugin)'; got exit 2
+    preflight · no git repo yet (first session). The kickoff initialises it.
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · present docs/project-status.md
+    preflight · ledger bob/ledger.json present
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · governed without a status file · red as expected (exit 2, STOP line names: missing docs/project-status.md)
+preflight.test · ungoverned without a status file · FAILED: expected exit 0 and 'preflight · clear'; got exit 2
+    preflight · no git repo yet (first session). The kickoff initialises it.
+    preflight · present docs/product/product-plan.md
+    preflight · STOP · missing bob/schema.json
+    preflight · STOP · missing docs/project-status.md
+    preflight · ledger not yet created; fixtures/ledger.json stands in (synthetic)
+    preflight · no runtime Babel
+    preflight · one or more STOP lines above. Fix them before any work.
+preflight.test · runtime Babel · red as expected (exit 2, STOP line names: runtime Babel found)
+preflight.test · 8 passed, 7 failed

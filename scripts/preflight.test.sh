@@ -15,11 +15,13 @@ PREFLIGHT="${1:-$HERE/preflight.sh}"
 pass=0; fail=0
 say() { printf 'preflight.test · %s · %s\n' "$1" "$2"; }
 
-# A minimal healthy repo: the three required files and a fixture ledger.
+# A minimal healthy repo: the plan, the status file and a fixture ledger.
+# bob/schema.json is NEVER in the repo: the preflight reads it from the plugin
+# folder (one home). A scaffold that wrote one would hide an adopted-repo bug.
 scaffold() {
   local d; d="$(mktemp -d "${TMPDIR:-/tmp}/bob-preflight.XXXXXX")"
   mkdir -p "$d/docs/product" "$d/bob" "$d/fixtures"
-  : > "$d/docs/product/product-plan.md"; : > "$d/bob/schema.json"; : > "$d/docs/project-status.md"
+  : > "$d/docs/product/product-plan.md"; : > "$d/docs/project-status.md"
   echo '{}' > "$d/fixtures/ledger.json"
   echo "$d"
 }
@@ -55,6 +57,12 @@ d="$(scaffold)"; expect_clear "clear, no git" "$d"
 # 1. On main with more than one commit: STOP.
 d="$(scaffold)"; ( cd "$d" && git_quiet init -b main && git_quiet add -A && git_quiet commit -m one && echo x > x && git_quiet add -A && git_quiet commit -m two )
 expect_stop "branch is main with 2 commits" "$d" "on main with 2 commits"
+# 1a. The branch message is generic: it names no build number.
+if printf '%s' "$OUT" | grep -q "git switch -c" && ! printf '%s' "$OUT" | grep -q "build-1"; then
+  say "branch message names no build" "ok (git switch -c, no build-1)"; pass=$((pass+1))
+else
+  say "branch message names no build" "FAILED: expected 'git switch -c' without 'build-1'"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
+fi
 
 # 1b. On main with exactly one commit (the first commit) is allowed.
 d="$(scaffold)"; ( cd "$d" && git_quiet init -b main && git_quiet add -A && git_quiet commit -m one )
@@ -88,6 +96,24 @@ if [ "$CODE" -eq 0 ] && printf '%s' "$OUT" | grep -q "FAKE_SERVICE_KEY present" 
 else
   say "key present by name only" "FAILED (exit $CODE)"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
 fi
+
+# 6. Adopted repo shape (Build 2): bob/brief.json and bob/ledger.json in the
+# repo, NO bob/schema.json there (it lives in the plugin), status present: clear.
+d="$(scaffold)"; echo '{}' > "$d/bob/brief.json"; echo '{}' > "$d/bob/ledger.json"
+run "$d"
+if [ "$CODE" -eq 0 ] && printf '%s' "$OUT" | grep -q "preflight · clear" && printf '%s' "$OUT" | grep -q "schema.json (plugin)"; then
+  say "adopted shape, schema from the plugin" "clear as expected (exit 0, schema read from the plugin folder)"; pass=$((pass+1))
+else
+  say "adopted shape, schema from the plugin" "FAILED: expected exit 0, clear, and 'schema.json (plugin)'; got exit $CODE"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
+fi
+
+# 6b. Governed (bob/brief.json present) but no docs/project-status.md: STOP naming it.
+d="$(scaffold)"; echo '{}' > "$d/bob/brief.json"; echo '{}' > "$d/bob/ledger.json"; rm "$d/docs/project-status.md"
+expect_stop "governed without a status file" "$d" "missing docs/project-status.md"
+
+# 6c. Not governed and no docs/project-status.md: clear (adopt creates it).
+d="$(scaffold)"; rm "$d/docs/project-status.md"
+expect_clear "ungoverned without a status file" "$d"
 
 # 5. Runtime Babel: STOP.
 d="$(scaffold)"; printf '<script type="text/babel"></script>\n' > "$d/index.html"
