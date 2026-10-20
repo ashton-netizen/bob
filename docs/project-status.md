@@ -1,6 +1,6 @@
 # BOB · project status (living file, update in place)
 
-Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 1 COMPLETE and merged to main. Pane seen by Ash on the Code tab, and again in a fresh folder after a one-command install from the repo (step 8 verified by Ash).
+Last updated: 21 October 2026, Build 2 kickoff written (docs/KICKOFF-BUILD-2.md). Build 1 COMPLETE and merged to main. Pane seen by Ash on the Code tab, and again in a fresh folder after a one-command install from the repo (step 8 verified by Ash).
 
 ## Where BOB is
 - Stage: Build 1 merged to main on 21 October 2026 (pull request 2, all five required checks green). Closeout notes on branch `build-1-closeout`. Repo https://github.com/ashton-netizen/bob (private, Ash's choice 21 October 2026; the GitHub org `step-change` belongs to another company). No paid calls made. Shared setup unchanged. Pack `~/Downloads/BOB_Claude-Code-Launch-Pack_v1` verified intact against MANIFEST.json (183 files, 0 mismatches).
@@ -21,7 +21,7 @@ Last updated: 21 October 2026, first Claude Code session on the Code tab. Build 
 REVISE. No Stop-if open. Build 1 under way. OQ1 (pane on the Code tab) CLOSED 21 October 2026, Ash's look. OQ5 (repo) CLOSED: ashton-netizen/bob.
 
 ## Next action
-Claude: write the Build 2 kickoff (`/bob adopt` on AquaAgent) in a new session, starting from docs/product/product-plan.md Build 2 and docs/handoff.md. Build 2 does not start in the Build 1 session.
+Ash needs to: open a NEW Code tab session on the BOB repo and paste `docs/KICKOFF-BUILD-2.md` (or type the one line at its top). Build 2 does not start in the Build 1 session or in the session that wrote the kickoff.
 
 ## Pane spike (OQ1), 20 October 2026
 - Throwaway mod `bob-pane-spike` written in the Cowork session container (not on the Mac, not in any repo): pane "BOB (spike)" plus `/bob-status`, synthetic fixture only, reads and writes nothing, blocks nothing.
@@ -53,3 +53,4 @@ None that stop design work. The pane spike is the first thing that can fail; its
 - Merge: verified. Pull request 2 merged into main at e3b7a6e with all five required checks green (run 39511124419). main now carries Build 1; every later change goes branch, pull request, merge.
 - Step 8 marketplace install: VERIFIED. Ash opened a new Code tab session on `~/Downloads/bob-install-check` and saw the BOB pane (21 October 2026). Earlier detail: In the fresh empty folder `~/Downloads/bob-install-check`, `claude plugin install bob --marketplace ashton-netizen/bob --scope project` (engine 2.1.304) added the marketplace in user settings, installed bob@bob 0.1.0 enabled at project scope, and wrote `.claude/settings.json` with `enabledPlugins: { "bob@bob": true }`. Evidence: docs/evidence/build-1/B1-step8-install-fresh-folder.txt. The pane appearing in the next session on that folder is Ash's check (I CHECK THIS).
 - Build 1 closed: INC-B1 set done, RUN-B1-01 completed in bob/ledger.json; evidence E-B1-09 (origin human) records Ash's confirmation of the pane in the fresh folder. Build 1 DoD lines 1 to 3 green by 24 October 2026 target: met on 21 October (lines 1 and 2 by test, line 3 by Ash's look). Open from the DoD standing lines: rollback not rehearsed.
+- Build 2 kickoff, 21 October 2026: planned. `docs/KICKOFF-BUILD-2.md` written on branch `build-2-kickoff` (Part A makes `/bob adopt` and `/bob approve` exist in the plugin with a preflight that passes on an adopted repo; Part B adopts AquaAgent at `~/code-projects/deep-dive-agent-starter` on branch `bob-adopt`, main untouched, with the coverage manifest, source register, remote checks seen red on a dummy pull request, and INC-01). Found while writing it: the AquaAgent main branch has no branch protection (gh api 404, 21 October 2026); the plugin preflight would STOP on an adopted repo (missing bob/schema.json and docs/project-status.md in the repo); Gate A engages the moment bob/brief.json lands, so the adopt commit itself needs an approval (INC-00). No adopt code written; AquaAgent repo not touched. Evidence: the kickoff file itself and its pull request.
