@@ -222,6 +222,17 @@
       "created_at": "2026-10-21T09:55:26+11:00",
       "source": "human",
       "is_synthetic": false
+    },
+    {
+      "id": "E-00",
+      "requirement_id": "R12",
+      "kind": "test",
+      "ref": "docs/evidence/build-1/E-00-spike-validate-and-test.txt",
+      "captured_at": "2026-10-20T23:52:03Z",
+      "origin": "tool",
+      "created_at": "2026-10-22T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
     }
   ]
 }
