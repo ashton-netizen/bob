@@ -22,6 +22,11 @@ type Any = Record<string, any>
 type Engine = Any
 
 type Model = {
+  // The repo root, absolute, from $.session.root(). Every repo file is read and
+  // written under it: a bare relative path resolves against the engine's own
+  // working directory, which is the plugin folder, not the repo (seen live on
+  // 21 October 2026: /bob adopt refused "bob/ledger.json already exists").
+  root: string
   governed: boolean
   ownLedger: boolean
   schema: Any | null
@@ -78,25 +83,33 @@ async function sha256File($: Engine, path: string): Promise<string | null> {
   }
 }
 
+// The repo root, absolute. The one home for resolving a repo path.
+async function repoRoot($: Engine): Promise<string> {
+  const root = String(await $.session.root())
+  return root.replace(/\/+$/, '')
+}
+const at = (root: string, path: string) => `${root}/${path}`
+
 async function load($: Engine): Promise<Model> {
   const parseErrors: string[] = []
+  const root = await repoRoot($)
   const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, parseErrors)
-  const governed = await exists($, 'bob/brief.json')
+  const governed = await exists($, at(root, 'bob/brief.json'))
   // The repo's own ledger wins over fixtures as soon as it exists, brief or not.
-  const ownLedger = governed || (await exists($, 'bob/ledger.json'))
+  const ownLedger = governed || (await exists($, at(root, 'bob/ledger.json')))
   const dir = ownLedger ? 'bob' : 'fixtures'
-  const brief = await readJson($, `${dir}/brief.json`, parseErrors)
-  const approvals = ((await readJson($, `${dir}/approvals.json`, parseErrors))?.approvals ?? []) as Any[]
+  const brief = await readJson($, at(root, `${dir}/brief.json`), parseErrors)
+  const approvals = ((await readJson($, at(root, `${dir}/approvals.json`), parseErrors))?.approvals ?? []) as Any[]
   const ledgerPath = `${dir}/ledger.json`
-  const ledger = await readJson($, ledgerPath, parseErrors)
+  const ledger = await readJson($, at(root, ledgerPath), parseErrors)
   let ledgerMtimeMs: number | null = null
   try {
-    ledgerMtimeMs = Number((await $.fs.stat(ledgerPath)).mtimeMs)
+    ledgerMtimeMs = Number((await $.fs.stat(at(root, ledgerPath))).mtimeMs)
   } catch {
     ledgerMtimeMs = null
   }
-  const hash = brief ? await sha256File($, `${dir}/brief.json`) : null
-  return { governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, parseErrors }
+  const hash = brief ? await sha256File($, at(root, `${dir}/brief.json`)) : null
+  return { root, governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, parseErrors }
 }
 
 // The test kit's $ has no ui.invalidate; a live session does.
@@ -256,12 +269,13 @@ async function adopt($: Engine): Promise<string> {
   const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, errors)
   if (!schema) return refusedText('adopt', ['bob/schema.json is missing or does not parse in the plugin folder. Ash needs to reinstall BOB'])
 
+  const root = await repoRoot($)
   const existing: string[] = []
-  for (const f of BOB_FILES) if (await exists($, f)) existing.push(f)
+  for (const f of BOB_FILES) if (await exists($, at(root, f))) existing.push(f)
   if (existing.length) return refusedText('adopt', existing.map(f => `${f} already exists; adopt never overwrites a governed repo's files`))
 
-  const text = await readText($, PROPOSAL_PATH)
-  if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found. The bob-adopt skill writes it`])
+  const text = await readText($, at(root, PROPOSAL_PATH))
+  if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found under ${root}. The bob-adopt skill writes it`])
   let p: Any
   try {
     p = JSON.parse(text)
@@ -289,23 +303,23 @@ async function adopt($: Engine): Promise<string> {
   const sources: Any = { $comment: 'Written by /bob adopt. access and processing say what was observed; a source nobody opened is never extracted.', sources: p.sources }
 
   const wrote: string[] = []
-  await $.fs.write('bob/ledger.json', pretty(ledger)); wrote.push('bob/ledger.json')
-  await $.fs.write('bob/sources.json', pretty(sources)); wrote.push('bob/sources.json')
-  await $.fs.write('bob/approvals.json', pretty({ approvals: [] })); wrote.push('bob/approvals.json')
+  await $.fs.write(at(root, 'bob/ledger.json'), pretty(ledger)); wrote.push('bob/ledger.json')
+  await $.fs.write(at(root, 'bob/sources.json'), pretty(sources)); wrote.push('bob/sources.json')
+  await $.fs.write(at(root, 'bob/approvals.json'), pretty({ approvals: [] })); wrote.push('bob/approvals.json')
   // Last on purpose: Gate A engages the moment this file exists.
-  await $.fs.write('bob/brief.json', pretty(brief)); wrote.push('bob/brief.json')
+  await $.fs.write(at(root, 'bob/brief.json'), pretty(brief)); wrote.push('bob/brief.json')
 
   const incIds = (ledger.increments as Any[]).map(i => `${i.id} ${i.state}`).join(', ')
   const name = String(p.brief.project?.name ?? 'this repo')
   const line = `- /bob adopt, ${stamp()}: implemented. bob/brief.json (${(brief.requirements as Any[]).length} requirements), bob/ledger.json (${incIds || 'no increments'}; ${(ledger.evidence as Any[]).length} evidence records), bob/sources.json (${(p.sources as Any[]).length} sources), bob/approvals.json (empty). Evidence: ${PROPOSAL_PATH}. Ash needs to: type /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`
-  const current = await readText($, 'docs/project-status.md')
+  const current = await readText($, at(root, 'docs/project-status.md'))
   const status = current === null
     ? `# ${name} · project status (living file, update in place)\n\nGoverned by BOB. States and transitions: bob/schema.json in the BOB plugin.\n\n## Build log (one line per step: step, state, evidence)\n${line}\n`
     : `${current.replace(/\s*$/, '')}\n${line}\n`
-  await $.fs.write('docs/project-status.md', status); wrote.push(`docs/project-status.md (${current === null ? 'created' : 'one line appended'})`)
+  await $.fs.write(at(root, 'docs/project-status.md'), status); wrote.push(`docs/project-status.md (${current === null ? 'created' : 'one line appended'})`)
 
   return [
-    `BOB adopt: wrote ${wrote.length} files, refused 0.`,
+    `BOB adopt: wrote ${wrote.length} files, refused 0 (under ${root}).`,
     ...wrote.map(w => `- wrote ${w}`),
     `Gate A is now engaged: no increment is active, so every write is refused until a person types /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`,
     'Nothing was committed: committing is a Gate A decision in the session.',
@@ -334,7 +348,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
 
   let approver = ''
   try {
-    const ran = await $.process.run(['git', 'config', 'user.name'])
+    const ran = await $.process.run(['git', 'config', 'user.name'], { cwd: m.root })
     approver = String(ran.stdout ?? '').trim()
   } catch {
     approver = ''
@@ -353,11 +367,11 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
     source: 'human',
     is_synthetic: false,
   }
-  const approvalsFile = (await readJson($, 'bob/approvals.json', [])) ?? {}
-  await $.fs.write('bob/approvals.json', pretty({ ...approvalsFile, approvals: [...m.approvals, record] }))
+  const approvalsFile = (await readJson($, at(m.root, 'bob/approvals.json'), [])) ?? {}
+  await $.fs.write(at(m.root, 'bob/approvals.json'), pretty({ ...approvalsFile, approvals: [...m.approvals, record] }))
 
   const ledger = { ...m.ledger, increments: increments.map(i => (i.id === id ? { ...i, state: 'active', approval_id: record.id } : i)) }
-  await $.fs.write('bob/ledger.json', pretty(ledger))
+  await $.fs.write(at(m.root, 'bob/ledger.json'), pretty(ledger))
   redraw($)
 
   return [
@@ -532,7 +546,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, adopt this repo from a proposal, or approve <increment id> (a person only)' })
 
     try {
-      const ran = await $.process.run(['bash', `${$.plugin.root}/scripts/preflight.sh`])
+      // The preflight reads the repo, so it runs in the repo (its own fallback is $PWD).
+      const ran = await $.process.run(['bash', `${$.plugin.root}/scripts/preflight.sh`], { cwd: await repoRoot($), env: { CLAUDE_PROJECT_DIR: await repoRoot($) } })
       const pf = parsePreflight(ran.exitCode, ran.stdout, ran.stderr, Date.now())
       await update($, preflightAtom, () => pf)
       if (pf.stops.length) $.ui.toast(`BOB preflight STOP: ${pf.stops[0]}`)
@@ -581,7 +596,7 @@ export const register: Register = on => {
 
     const path = String((e as Any).file_path ?? '')
     if (m.governed && isBriefPath(path)) {
-      const current = (await readText($, 'bob/brief.json')) ?? ''
+      const current = (await readText($, at(m.root, 'bob/brief.json'))) ?? ''
       const text = proposedText(e as Any, current)
       if (text !== null) {
         let after: Any | null = null

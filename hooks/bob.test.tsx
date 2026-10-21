@@ -108,11 +108,24 @@ type World = {
   userName?: string
 }
 
-// A path relative to the repo root: the tail from the LAST bob/, fixtures/ or
-// docs/ segment. Greedy on purpose: in CI the checkout folder is itself named
-// bob (/home/runner/work/bob/bob/...), and a lazy match stripped too little,
-// so every read missed (seen red on pull request 7, 21 October 2026).
-const rel = (path: string) => path.replace(/^.*\/(?=(bob|fixtures|docs)\/)/, '').replace(/^\.\//, '')
+// The repo root the double serves, answered to $.session.root(). Every repo
+// file the module touches must be addressed under it, absolute. A bare relative
+// path is resolved the way the engine did live on 21 October 2026: against the
+// process's working directory, which is NOT the repo (the plugin folder, which
+// holds BOB's own bob/ledger.json), so /bob adopt refused "already exists" and
+// Gate A read the wrong folder. The double reproduces that: a bare path lands
+// under ELSEWHERE, where only the plugin's own files exist.
+// Never a path a checkout could sit at: in CI the plugin folder is
+// /home/runner/work/bob/bob, and a ROOT equal to it swallowed the plugin's own
+// schema read (seen red on pull request 10, run 39536059003).
+const ROOT = '/adopted/repo'
+const ELSEWHERE = '/elsewhere/plugins/cache/bob'
+const resolve = (path: string) => (path.startsWith('/') ? path : `${ELSEWHERE}/${path.replace(/^\.\//, '')}`)
+// A repo file by its path under ROOT; undefined for anything outside the repo.
+const rel = (path: string): string | undefined => {
+  const abs = resolve(path)
+  return abs.startsWith(`${ROOT}/`) ? abs.slice(ROOT.length + 1) : undefined
+}
 
 // Wires the engine's file system and process events to one synthetic world.
 // Paths are matched by their tail so $.plugin.root can be anything, EXCEPT
@@ -124,8 +137,16 @@ function world(on: any, w: World) {
   const governed = () => w.governed || 'bob/brief.json' in w.files!
   const text = (path: string): string | undefined => {
     const r = rel(path)
+    if (r === undefined) {
+      // Outside the repo: only the plugin's own files exist. bob/schema.json is
+      // served under any plugin-root prefix (a bare repo-relative read of it
+      // is a defect: the adopted repo never gets a copy); the plugin folder
+      // also carries BOB's own bob/ledger.json, which is NOT the repo's.
+      if (path.endsWith('bob/schema.json') && path !== 'bob/schema.json') return JSON.stringify(SCHEMA)
+      if (resolve(path).endsWith('/bob/ledger.json')) return JSON.stringify({ increments: [], runs: [], events: [], evidence: [], $comment: 'the plugin folder\'s own ledger, never the repo\'s' })
+      return undefined
+    }
     if (r in w.files!) return w.files![r]
-    if (path.endsWith('bob/schema.json')) return path === 'bob/schema.json' ? undefined : JSON.stringify(SCHEMA)
     const dir = governed() ? 'bob' : 'fixtures'
     if (r === `${dir}/brief.json`) return JSON.stringify(w.brief)
     if (r === `${dir}/approvals.json`) return JSON.stringify({ approvals: w.approvals })
@@ -137,14 +158,18 @@ function world(on: any, w: World) {
     if (rel(e.path) === 'bob/brief.json') return { value: governed() }
     return { value: text(e.path) !== undefined }
   })
+  on('session.root', () => ({ value: ROOT }))
   on('fs.read', (_: unknown, e: { path: string; as: string }) => {
     const t = text(e.path)
     if (t === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: e.as === 'bytes' ? { base64: btoa(unescape(encodeURIComponent(t))) } : t }
   })
   on('fs.write', (_: unknown, e: { path: string; text: string }) => {
-    w.writes!.push({ path: rel(e.path), text: e.text })
-    w.files![rel(e.path)] = e.text
+    // A write outside the repo is recorded under its resolved path so the
+    // test can name it; it never lands in the repo's files.
+    const r = rel(e.path) ?? resolve(e.path)
+    w.writes!.push({ path: r, text: e.text })
+    if (rel(e.path) !== undefined) w.files![r] = e.text
     return { value: undefined }
   })
   on('fs.stat', (_: unknown, e: { path: string }) => {
@@ -565,4 +590,15 @@ test('approve refuses when the brief changed after adopt only by re-hashing: a s
   expect(approvals[0]).toEqual(first)
   expect(approvals[1].brief_hash).toBe(await sha256(w.files!['bob/brief.json']))
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+})
+
+test('every repo file is addressed under $.session.root(): adopt writes the five files when the plugin folder, not the repo, holds a bob/ledger.json (the live refusal of 21 October 2026)', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+
+  const out = await adopt($)
+  expect(out).toContain('wrote 5 files, refused 0')
+  // Every write landed in the repo (a bare path would have landed under ELSEWHERE).
+  expect(w.writes!.map(x => x.path)).toEqual(['bob/ledger.json', 'bob/sources.json', 'bob/approvals.json', 'bob/brief.json', 'docs/project-status.md'])
+  for (const x of w.writes!) expect(x.path.startsWith('/')).toBe(false)
 })
