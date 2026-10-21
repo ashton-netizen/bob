@@ -115,7 +115,10 @@ type World = {
 // holds BOB's own bob/ledger.json), so /bob adopt refused "already exists" and
 // Gate A read the wrong folder. The double reproduces that: a bare path lands
 // under ELSEWHERE, where only the plugin's own files exist.
-const ROOT = '/home/runner/work/bob/bob'
+// Never a path a checkout could sit at: in CI the plugin folder is
+// /home/runner/work/bob/bob, and a ROOT equal to it swallowed the plugin's own
+// schema read (seen red on pull request 10, run 39536059003).
+const ROOT = '/adopted/repo'
 const ELSEWHERE = '/elsewhere/plugins/cache/bob'
 const resolve = (path: string) => (path.startsWith('/') ? path : `${ELSEWHERE}/${path.replace(/^\.\//, '')}`)
 // A repo file by its path under ROOT; undefined for anything outside the repo.
