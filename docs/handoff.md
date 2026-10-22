@@ -20,6 +20,14 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - The spike's own test is archived (`plugin-spike/hooks/pane.test.tsx.archived`): `claude plugin test .` collects every test under the repo and the root plugin answers the same pane id, so the two cannot share one test tree. Its last green run is in docs/evidence/build-1.
 - MANIFEST.json describes the start pack as shipped; after Build 1 `check_manifest.py` reports drift by design. Do not regenerate it to make the check green; it is the pack's record, not the repo's.
 
+## Decisions taken in the Build 3 session (23 October 2026, the design room)
+- The Cowork design room is a skill, `design-with-bob`, not an app: six stages (Capture, Understand, Design, Data, Visible, Challenge and approve) writing one project folder. Its only handoff to the engine is `docs/evidence/adopt/adopt-proposal.json`, the file `/bob adopt` already validates, so greenfield and adopted projects share one path and the design room never writes a governed file or an approval.
+- A non-text source counts as read only when `sources/<name>.extracted.txt` (the text BOB read, naming what was not read) sits beside it. That is how "no false read status" (R02) is checkable from files.
+- Review pages carry the brief's hash (`version <sha256[:12]>`) and the checker refuses a page generated from another version.
+- Skill names never start with `bob` (the picker landmine): `adopt-under-bob`, `design-with-bob`.
+- The checker ships inside the skill (`references/check_design_room.py`) and finds `bob/schema.json` by walking up from its own path, so in Cowork (no plugin folder) it says so and defers to `/bob adopt`. One home for the schema kept.
+- Landmine: this Mac's `python3` is 3.9; `X | None` annotations crash at import and make every "red" run exit 1 for the wrong reason. The red-run harness now requires a REFUSED line, not just exit 1.
+
 ## Decisions taken in the Build 3 session (22 October 2026, Part A, plugin 0.3.0)
 - Ash's "Start build 3" was taken as approval of `docs/KICKOFF-BUILD-3_proposed.md` with the handoff's landmines first. Part A runs in the BOB repo only: landmine fixes, the stack preflight, `/bob reconcile`, the rollback rehearsal. Items 1, 2, 3, 6, 7 and 8 of the kickoff need other repos, a screenshot of Mags's screen, a cloud run or Ash's look, so they are Part B and later; nothing of them was started.
 - An approval now also records `scope_hash`: sha256 of the canonical brief (sorted keys) with each requirement's `state` and `evidence_ids` removed. Gate A accepts `brief_hash` OR `scope_hash`, so a state move that passed the state guard costs no re-approval; a change to what a requirement says, or a new requirement, still does. `bob/schema.json` approval.scope_hash is the one home. Approvals written before 0.3.0 have no scope_hash and work as before.
