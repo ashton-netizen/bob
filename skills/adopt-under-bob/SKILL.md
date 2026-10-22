@@ -1,9 +1,9 @@
 ---
-name: bob-adopt
+name: adopt-under-bob
 description: Adopt an existing repo under BOB on a branch, main untouched. Use when someone says "bob adopt", "adopt this repo under BOB", "put AquaAgent under BOB", "govern this repo", or runs /bob adopt for the first time. Reads the repo's own plan, build brief, CI workflow, latest drift or QA review and live URL in Verify mode of build-brief; writes a coverage manifest and a proposal file in which every requirement state is backed by an evidence record or is not_assessed; then runs /bob adopt, which validates the proposal against the plugin's bob/schema.json and writes bob/ledger.json, bob/sources.json, bob/approvals.json (empty) and bob/brief.json last, plus one status line. Never sets a state from prose, never writes an approval, never runs git, never copies client material into the BOB repo, never reads a key. Stops for a path that does not open, a wrong remote, a key, or an edit to main. Not for building BOB itself, for a greenfield brief (build-brief), or for deploy-day security (ship-it-safely).
 ---
 
-# bob-adopt: put an existing repo under BOB, truthfully
+# adopt-under-bob: put an existing repo under BOB, truthfully
 
 The result: a branch of the adopted repo holding `bob/brief.json`, `bob/ledger.json`, `bob/sources.json`, `bob/approvals.json` (empty) and `docs/evidence/adopt/coverage-manifest.md`, one appended line in that repo's `docs/project-status.md`, and `main` unchanged. Every requirement state in `bob/brief.json` is `not_assessed` unless an evidence record in `bob/ledger.json` backs it. No state comes from prose, a model summary or a review's sentence: a claim is `reported` with a pointer, never `verified`.
 

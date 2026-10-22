@@ -92,7 +92,8 @@
       "approved_at"
     ],
     "immutable": true,
-    "brief_hash": "sha256 of bob/brief.json at approval time; Gate A compares it to the current file"
+    "brief_hash": "sha256 of bob/brief.json at approval time; Gate A compares it to the current file",
+    "scope_hash": "optional, written by /bob approve from 0.3.0: sha256 of the canonical brief (keys sorted) with each requirement's state and evidence_ids left out. Gate A accepts brief_hash OR scope_hash, so a lawful state move through the state guard does not cost a re-approval; any other change to the brief does. An approval without it keeps working on brief_hash alone"
   },
   "increment": {
     "fields": [
@@ -219,7 +220,7 @@
     "rule": "a connector or unsupported format never shows as ingested merely because a file was attached"
   },
   "gates": {
-    "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) and the active increment in scope_increment_ids",
+    "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) (or scope_hash == the brief's scope hash, see approval.scope_hash) and the active increment in scope_increment_ids; a Bash write to bob/brief.json is refused outright because the state guard sees Edit and Write only",
     "B_evidence": "block the end of a turn when the active increment's requirement_ids gained no evidence record during this run",
     "preflight": "scripts/preflight.sh on SessionStart"
   }

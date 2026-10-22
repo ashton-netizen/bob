@@ -36,6 +36,9 @@ type Model = {
   ledgerPath: string
   ledgerMtimeMs: number | null
   hash: string | null
+  // sha256 of the brief with requirement state and evidence_ids left out, keys sorted
+  // (see scopeHashOf). A lawful state move changes `hash` and never this.
+  scopeHash: string | null
   parseErrors: string[]
 }
 
@@ -83,6 +86,26 @@ async function sha256File($: Engine, path: string): Promise<string | null> {
   }
 }
 
+// Build 3: what an approval covers. A requirement walking one step through the
+// state table (and gaining an evidence id) is guarded by the state guard, so it
+// must not cost a re-approval; what a requirement SAYS, and which requirements
+// exist, must. Canonical JSON (sorted keys) so whitespace and key order never
+// matter. An approval written before 0.3.0 carries brief_hash only and keeps
+// working byte for byte.
+const canonical = (v: unknown): string =>
+  Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
+  : v && typeof v === 'object' ? `{${Object.keys(v as Any).sort().map(k => `${JSON.stringify(k)}:${canonical((v as Any)[k])}`).join(',')}}`
+  : JSON.stringify(v)
+
+async function scopeHashOf(brief: Any): Promise<string | null> {
+  try {
+    const scoped = { ...brief, requirements: ((brief.requirements ?? []) as Any[]).map(({ state: _s, evidence_ids: _e, ...rest }) => rest) }
+    return await sha256Bytes(new TextEncoder().encode(canonical(scoped)))
+  } catch {
+    return null
+  }
+}
+
 // The repo root, absolute. The one home for resolving a repo path.
 async function repoRoot($: Engine): Promise<string> {
   const root = String(await $.session.root())
@@ -109,7 +132,8 @@ async function load($: Engine): Promise<Model> {
     ledgerMtimeMs = null
   }
   const hash = brief ? await sha256File($, at(root, `${dir}/brief.json`)) : null
-  return { root, governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, parseErrors }
+  const scopeHash = brief ? await scopeHashOf(brief) : null
+  return { root, governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, scopeHash, parseErrors }
 }
 
 // The test kit's $ has no ui.invalidate; a live session does.
@@ -133,7 +157,7 @@ type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: s
 function approvalVerdict(m: Model): Verdict {
   if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
   if (!m.schema) return { ok: false, reason: 'bob/schema.json is missing or does not parse in the plugin folder', next: 'Ash needs to reinstall BOB' }
-  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>)' }
+  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. A typed /bob command lands in an open file pane: Ash needs to close file panes before typing one' }
   if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to run /bob adopt, or restore the files from git' }
   const active = activeIncrement(m)
   if (!active) {
@@ -145,7 +169,7 @@ function approvalVerdict(m: Model): Verdict {
     }
   }
   const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
-  const match = inScope.find(a => a.brief_hash === m.hash)
+  const match = inScope.find(a => a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash))
   if (match) return { ok: true, note: `${active.id} approved by ${match.id}` }
   if (inScope.length) {
     const ids = inScope.map(a => a.id).join(', ')
@@ -275,7 +299,7 @@ async function adopt($: Engine): Promise<string> {
   if (existing.length) return refusedText('adopt', existing.map(f => `${f} already exists; adopt never overwrites a governed repo's files`))
 
   const text = await readText($, at(root, PROPOSAL_PATH))
-  if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found under ${root}. The bob-adopt skill writes it`])
+  if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found under ${root}. The adopt-under-bob skill writes it`])
   let p: Any
   try {
     p = JSON.parse(text)
@@ -343,7 +367,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   const other = increments.find(i => i.state === 'active' && i.id !== id)
   if (other) return refusedText('approve', [`${other.id} is active; one increment at a time. Close ${other.id} (done or returned) before approving ${id}`])
   if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
-  const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && a.brief_hash === m.hash)
+  const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && (a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash)))
   if (dup) return refusedText('approve', [`${id} is already approved by ${dup.id} at the current brief hash ${short(m.hash)}; approvals are immutable and never duplicated`])
 
   let approver = ''
@@ -360,6 +384,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   const record = {
     id: `AP-${String(n).padStart(2, '0')}`,
     brief_hash: m.hash,
+    scope_hash: m.scopeHash,
     scope_increment_ids: [id],
     approver,
     approved_at: now,
@@ -379,6 +404,50 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
     `${id} is now active (approved, then active). Gate A allows writes under it; Gate B requires evidence for ${(inc.requirement_ids ?? []).join(', ') || 'its requirement ids'} before a round that writes can end.`,
     'Nothing was committed.',
   ].join('\n')
+}
+
+// R12 after an interrupted run: a run still running or verifying with no event
+// past the stale window is closed by a `reconciled` event, never by prose. It
+// becomes completed when the ledger already holds a finished event for it, else
+// failed with exit_reason interrupted. Increments and requirements are not
+// touched: what the interrupted work proved is for evidence and a person.
+const STALE_MS = 120_000
+
+async function reconcile($: Engine): Promise<string> {
+  const m = await load($)
+  if (!m.ownLedger || !m.ledger) return refusedText('reconcile', ['this repo has no bob/ledger.json of its own; fixtures/ records are synthetic and never reconciled'])
+  if (m.parseErrors.length) return refusedText('reconcile', m.parseErrors)
+  const now = Date.now()
+  const runs: Any[] = m.ledger.runs ?? []
+  const events: Any[] = m.ledger.events ?? []
+  const stale = runs.filter(r => ['running', 'verifying'].includes(r.state) && now - Date.parse(String(r.last_event_at)) > STALE_MS)
+  if (!stale.length) return 'BOB reconcile: nothing to reconcile. No run is running or verifying past the stale window. Nothing was written.'
+
+  const when = stamp()
+  const added: Any[] = []
+  const done: string[] = []
+  const next = runs.map(r => {
+    if (!stale.includes(r)) return r
+    const finished = events.some(ev => ev.run_id === r.id && ev.type === 'finished')
+    const state = finished ? 'completed' : 'failed'
+    const exit_reason = finished ? (r.exit_reason ?? 'success') : 'interrupted'
+    added.push({
+      id: `EV-RECON-${r.id}-${events.length + added.length + 1}`,
+      run_id: r.id,
+      at: when,
+      origin: 'bob',
+      type: 'reconciled',
+      detail: `${r.state} with no event since ${r.last_event_at}; ${finished ? 'a finished event exists' : 'no finished event'}, so ${state}`,
+      created_at: when,
+      source: 'tool',
+      is_synthetic: false,
+    })
+    done.push(`${r.id} ${r.state} to ${state}`)
+    return { ...r, state, exit_reason, last_event_at: when }
+  })
+  await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, runs: next, events: [...events, ...added] }))
+  redraw($)
+  return [`BOB reconcile: ${done.length} run(s) closed: ${done.join('; ')}.`, 'One reconciled event per run was appended to the ledger; increments and requirement states were not touched.', 'Nothing was committed.'].join('\n')
 }
 
 const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.`
@@ -418,11 +487,117 @@ function proposedText(e: Any, current: string): string | null {
   return null
 }
 
-// Bash that writes files: redirects, the usual writers, and git or package
-// commands that change the tree. Bounded on purpose; the remote checks are the
-// real gate (product-plan Part 3).
-const FILE_WRITING_BASH =
-  /(^|[\s;&|(`])(tee|sed\s+-i|perl\s+-[a-z]*i|mv|cp|rm|rmdir|touch|mkdir|install|dd|truncate|chmod|chown|ln|patch|rsync|unzip|tar\s+-?[a-z]*x|git\s+(commit|push|merge|rebase|reset|checkout|switch|add|rm|mv|stash|apply|cherry-pick|tag|clean)|npm\s+(install|i|ci|uninstall|update)|pip3?\s+install|pnpm\s+(install|add)|yarn\s+(add|install))(\s|$)|>{1,2}/
+// Bash that writes files. Read per command segment, not per text: a quote-aware
+// split on ; | & ( ) and newlines, quoted text blanked, fd redirects and
+// /dev/null ignored, and the writing verb read at the command position (for git,
+// its subcommand). Bounded on purpose; the remote checks are the real gate
+// (product-plan Part 3). The first version matched text anywhere, so
+// `2>&1`, `2>/dev/null` and "git add" inside a quoted string were refused with
+// no active increment (seen four times in Part B, 22 October 2026).
+type Segment = { raw: string; bare: string }
+
+function segments(command: string): Segment[] {
+  const out: Segment[] = []
+  let raw = ''
+  let bare = ''
+  let quote: string | null = null
+  const push = () => {
+    if (raw.trim()) out.push({ raw: raw.trim(), bare: bare.trim() })
+    raw = ''
+    bare = ''
+  }
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]
+    if (quote) {
+      raw += c
+      if (c === '\\' && quote === '"' && i + 1 < command.length) {
+        raw += command[++i]
+        continue
+      }
+      if (c === quote) {
+        quote = null
+        bare += c
+      }
+      continue
+    }
+    if (c === '"' || c === "'") {
+      quote = c
+      raw += c
+      bare += c
+      continue
+    }
+    if (c === '\\' && i + 1 < command.length) {
+      raw += c + command[i + 1]
+      bare += '  '
+      i++
+      continue
+    }
+    if (c === ';' || c === '|' || c === '\n' || c === '(' || c === ')' || c === '`') {
+      push()
+      continue
+    }
+    if (c === '&') {
+      // &> and the fd duplications 2>&1, >&2 are redirects, not separators.
+      if (command[i + 1] === '>' || command[i - 1] === '>' || command[i - 1] === '<') {
+        raw += c
+        bare += c
+        continue
+      }
+      push()
+      continue
+    }
+    raw += c
+    bare += c
+  }
+  push()
+  return out
+}
+
+const PLAIN_WRITERS = new Set(['tee', 'mv', 'cp', 'rm', 'rmdir', 'touch', 'mkdir', 'install', 'dd', 'truncate', 'chmod', 'chown', 'ln', 'patch', 'rsync', 'unzip'])
+const GIT_WRITERS = new Set(['commit', 'push', 'merge', 'rebase', 'reset', 'checkout', 'switch', 'add', 'rm', 'mv', 'stash', 'apply', 'cherry-pick', 'tag', 'clean'])
+const INTERPRETERS = new Set(['python', 'python3', 'node', 'ruby', 'perl', 'php', 'deno', 'bun'])
+
+function words(bare: string): string[] {
+  const w = bare.split(/\s+/).filter(Boolean)
+  while (w.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w[0]) || ['sudo', 'command', 'env', 'time'].includes(w[0]))) w.shift()
+  return w
+}
+
+function gitSubcommand(w: string[]): string {
+  for (let i = 1; i < w.length; i++) {
+    if (w[i] === '-C' || w[i] === '-c') { i++; continue }
+    if (w[i].startsWith('-')) continue
+    return w[i]
+  }
+  return ''
+}
+
+function segmentWrites(seg: Segment): boolean {
+  const noFd = seg.bare.replace(/\d*>&\d*-?/g, ' ').replace(/&?\d*>>?\s*\/dev\/null/g, ' ')
+  if (/>/.test(noFd)) return true
+  const w = words(noFd)
+  const verb = (w[0] ?? '').replace(/^.*\//, '')
+  if (verb === 'git') return GIT_WRITERS.has(gitSubcommand(w))
+  if (PLAIN_WRITERS.has(verb)) return true
+  const rest = w.slice(1)
+  if (verb === 'sed') return rest.some(a => /^-[A-Za-z]*i/.test(a) || a === '--in-place')
+  if (verb === 'perl') return rest.some(a => /^-[A-Za-z]*i/.test(a))
+  if (verb === 'tar') return rest.some(a => /^-?[A-Za-z]*x/.test(a))
+  if (verb === 'npm') return ['install', 'i', 'ci', 'uninstall', 'update'].includes(rest[0])
+  if (verb === 'pip' || verb === 'pip3') return rest[0] === 'install'
+  if (verb === 'pnpm') return ['install', 'add'].includes(rest[0])
+  if (verb === 'yarn') return ['add', 'install'].includes(rest[0])
+  return false
+}
+
+const isInterpreter = (seg: Segment): boolean => INTERPRETERS.has((words(seg.bare)[0] ?? '').replace(/^.*\//, ''))
+const writesFiles = (command: string): boolean => segments(command).some(segmentWrites)
+
+// The state guard runs on Edit and Write only. A Bash write to bob/brief.json
+// (a redirect, sed -i, or an interpreter one-liner) would skip the state table,
+// so it is refused outright; git on the file is a Gate A decision, not this one.
+const writesBriefFromBash = (command: string): boolean =>
+  segments(command).some(seg => /(^|[\s'"=\/])bob\/brief\.json/.test(seg.raw) && !/^git\b/.test(words(seg.bare).join(' ')) && (segmentWrites(seg) || isInterpreter(seg)))
 
 const isBriefPath = (path: string) => /(^|\/)bob\/brief\.json$/.test(path)
 
@@ -487,10 +662,8 @@ function describe(m: Model, pf: Preflight | null, now: number): Board {
 
   let stale: string | null = null
   if (m.ledgerMtimeMs !== null && lastEventAt !== undefined && m.ledgerMtimeMs < lastEventAt) stale = 'stale: ledger file is older than its last event'
-  if (latestRun && ['running', 'verifying'].includes(latestRun.state)) {
-    const last = Date.parse(String(latestRun.last_event_at))
-    if (!Number.isNaN(last) && now - last > 120_000) stale = `stale, reconciling: run ${latestRun.id} ${latestRun.state} with no event for ${Math.round((now - last) / 1000)}s`
-  }
+  const staleRun = runs.find(r => ['running', 'verifying'].includes(r.state) && now - Date.parse(String(r.last_event_at)) > STALE_MS)
+  if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Type /bob reconcile to close it`
 
   const notes: string[] = []
   if (!m.governed && !m.ownLedger) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
@@ -543,7 +716,7 @@ const colour = (r: Row) =>
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, adopt this repo from a proposal, or approve <increment id> (a person only)' })
+    await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, adopt this repo from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
 
     try {
       // The preflight reads the repo, so it runs in the repo (its own fallback is $PWD).
@@ -583,6 +756,7 @@ export const register: Register = on => {
       redraw($)
       return { text }
     }
+    if (word === 'reconcile') return { text: await reconcile($) }
     if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
     const m = await load($)
     return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
@@ -616,8 +790,12 @@ export const register: Register = on => {
   }).catch(($, e, next) => (next.called ? next(e) : { deny: 'BOB Gate A: its guard failed, so this write is refused. Next action: Claude: report the failure to Ash.' }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!FILE_WRITING_BASH.test(e.command ?? '')) return next(e)
+    const command = String(e.command ?? '')
+    if (!writesFiles(command) && !writesBriefFromBash(command)) return next(e)
     const m = await load($)
+    if (m.governed && writesBriefFromBash(command)) {
+      return { deny: 'BOB state guard refused this command: it writes bob/brief.json from Bash, and the state guard (state table, evidence before verified, a person before accepted) only sees Edit or Write. Next action: Claude: change bob/brief.json with Edit or Write.' }
+    }
     const v = approvalVerdict(m)
     if (!v.ok) return { deny: denial('Gate A', v) }
     if (m.governed) await update($, touchedAtom, list => [...list, `bash: ${e.command.slice(0, 60)}`].slice(-100))

@@ -1,4 +1,4 @@
-# BOB · Build 3 kickoff, PROPOSED (not approved; do not paste until Build 2 Part B is closed)
+# BOB · Build 3 kickoff (approved by Ash's "Start build 3", 22 October 2026; Part A done, Part B open: see docs/project-status.md)
 
 Written 22 October 2026 by the Build 2 Part A session from the plan's "Later" list, the Build 2 kickoff's last line (Build 3 = adopt VGA and tAItans, the bob-design Cowork skill, the Mags pilot) and the Cowork notes of 21 to 22 October (`docs/COWORK-NOTES_2026-10-21.md`, a proposal). Ash needs to: approve the scope below by popup in the session that runs it, after Part B's report. Nothing here is approved.
 

@@ -1,0 +1,57 @@
+# Rollback rehearsal, 2026-10-22T05:46Z, engine 2.1.304 (Claude Code), disposable folder (not a repo)
+## 1 install at project scope
+Marketplace 'bob' is already added
+Installing plugin "bob@bob"...✔ Successfully installed plugin: bob@bob (scope: project)
+--- .claude/settings.json
+{
+  "enabledPlugins": {
+    "bob@bob": true
+  }
+}
+--- plugin list
+  ❯ bob@bob
+    Version: 0.1.0
+    Scope: project
+    Status: ✔ enabled
+
+  ❯ bob@bob
+    Version: 0.2.1
+    Scope: project
+## 2 rollback A: set bob@bob false in .claude/settings.json (what the handoff says)
+{
+  "enabledPlugins": {
+    "bob@bob": false
+  }
+}
+  ❯ bob@bob
+    Version: 0.2.1
+    Scope: project
+    Status: ✘ disabled
+
+  ❯ bob@bob
+    Version: 0.2.1
+    Scope: project
+## 3 rollback B: uninstall at project scope
+✔ Successfully uninstalled plugin: bob (scope: project)
+--- .claude/settings.json after uninstall
+{
+  "enabledPlugins": {}
+}
+--- plugin list entries for bob after uninstall
+  ❯ bob@bob
+    Version: 0.1.0
+    Scope: project
+    Status: ✘ disabled
+--
+  ❯ bob@bob
+    Version: 0.2.1
+    Scope: project
+    Status: ✘ disabled
+## 4 re-enable path: install again (proves rollback is reversible)
+Marketplace 'bob' is already added
+Installing plugin "bob@bob"...✔ Successfully installed plugin: bob@bob (scope: project)
+{
+  "enabledPlugins": {
+    "bob@bob": true
+  }
+}
