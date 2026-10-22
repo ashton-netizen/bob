@@ -1,0 +1,18 @@
+{
+  "name": "BOB \u2014 Build Optimisation Buddy",
+  "short_name": "BOB",
+  "icons": [
+    {
+      "src": "assets/bob/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/bob/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#0F0F0F",
+  "background_color": "#FFFFFF"
+}

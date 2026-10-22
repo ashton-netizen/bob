@@ -23,3 +23,15 @@ Written by the Cowork session that produced the plan. It found Build 1 and Build
 | Scheduled agents in the cloud | Not covered | Spike first: one scheduled routine (AquaAgent 7am loop) run as a cloud session on a repo carrying BOB; observe whether `enabledPlugins` loads it and the gates fire. Blocked runs need allow rules or a PermissionRequest hook (documented). R21 moves on the result |
 | Partner with Claude in the planning | Method covered, product not | `bob-design` skill and review pages as views of brief.json |
 | Optimise data sources before dashing off | Designed, unproven | Part B steps 7 and 8 on AquaAgent are the first real run; INC-01 candidate is the 18 October source consolidation |
+
+## Brand assets added 22 October 2026 (untracked, assets/brand/)
+- `favicon.svg` and `favicon-light.svg`: the BOB mark, GC Vank B traced to a path (licence R6ZLS29H4P) on a `#0F0F0F` tile, one flat accent step bar `#F75821` (design-tokens.md: solo accent for icons; gradient reserved). PNGs at 16, 32, 48, 180, 512 for both. `build_mark.py` regenerates them from the font file in scm-design-skill.
+- `bob-illustration-steps-2048.jpg`: Nano Banana (Gemini) image chosen by Ash. Monochrome cube staircase, one orange cube with a white B on top. Use for the pane header, README and pilot page; it carries the accent for its section.
+- Review page: https://claude.ai/artifact/R4YcMNjJkUDWHHFkG8R36Q (private). Next session: commit via pull request, wire favicon.svg into any HTML BOB serves, and reference the illustration in README.md. No SpongeBob likeness was used or is to be used; the mark and image are original.
+
+## Mark decision, 22 October 2026 (supersedes the favicon lines above)
+- Ash chose the sponge B as BOB's mark. Files in `assets/brand/`: `bob-sponge-render-2048.jpg` (near-black sponge, white B, orange band, for light surfaces), `bob-sponge-render-light-2048.jpg` (white sponge, near-black B, for dark surfaces), tiles `bob-sponge-tile-{16,32,48,180,512}.png` and `bob-sponge-tile-light-*.png` with transparent corners, `bob-sponge-proof-pair.png` (16 px check on both tab colours, passed).
+- Flat vector fallback where an SVG is required: `bob-favicon.svg` / `bob-favicon-light.svg` (hi-vis tile with eyes, hand-drawn, 639 bytes). The GC Vank B (`favicon.svg`) is retired as the favicon and kept as a wordmark lockup.
+- `bob-character-render-2048.jpg` is BOB the character (solid cube, orange band, eyes) for the pane and README hero. Rule carried into the brand: no face ever goes on the sponge; the character with eyes is the solid cube only. No likeness of any existing character in any colourway.
+- Method: creative-territories run, three routes rendered, sweep and cull on https://claude.ai/artifact/M9AGEiauZjWwbrb3U2RAey. Mark page v3: https://claude.ai/artifact/R4YcMNjJkUDWHHFkG8R36Q. Renders: Nano Banana via gemini.google.com, 2048 px, QC at full size.
+- Next Code session: commit `assets/brand/` via pull request (never main); pick the twin per surface (light tab = dark sponge, dark tab and pane = light sponge); add `<link rel="icon">` to any HTML BOB serves using the PNG tiles, SVG fallback second.

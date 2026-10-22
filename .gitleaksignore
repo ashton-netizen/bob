@@ -1,0 +1,3 @@
+# gitleaks false positives, one fingerprint per line (commit:file:rule:line). Never a broad allowlist.
+# 22 October 2026: a SHA-256 file hash in the brand pack's manifest, on the entry for design-tokens.md; the word "tokens" plus a hex string reads as a key to the generic-api-key rule. It is a file digest, verified against the pack, not a credential.
+e2fe8eabeeedef59f6956692e6efad0650a19956:references/bob-brand/MANIFEST-SHA256.json:generic-api-key:29
