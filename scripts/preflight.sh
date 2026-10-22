@@ -67,6 +67,47 @@ else
   say "no runtime Babel"
 fi
 
+# 6. Stack list (Build 3): what this Stepper's machine needs to finish a build.
+# Names gaps, never values. BOB_GIT and BOB_GH are test seams (a path to the tool).
+GIT_BIN="${BOB_GIT:-git}"; GH_BIN="${BOB_GH:-gh}"
+if command -v "$GIT_BIN" >/dev/null 2>&1; then
+  say "stack: git present"
+else
+  bad "stack gap: git not found. Ash needs to install git before BOB can branch or commit"
+fi
+origin="$(git remote get-url origin 2>/dev/null || true)"
+case "$origin" in
+  *github.com*)
+    if ! command -v "$GH_BIN" >/dev/null 2>&1; then
+      bad "stack gap: gh (GitHub CLI) not found. Ash needs to install it before BOB can open or merge a pull request"
+    elif ! "$GH_BIN" auth status >/dev/null 2>&1; then
+      bad "stack gap: gh is not signed in. Ash needs to sign in to GitHub with gh"
+    else
+      say "stack: gh signed in"
+      if "$GH_BIN" repo view "$origin" --json name >/dev/null 2>&1; then
+        say "stack: origin repo reachable"
+      else
+        bad "stack gap: no access to the origin repo. Ash needs to be given access to it on GitHub"
+      fi
+    fi
+    ;;
+  '') say "stack: no origin remote (gh checks skipped)" ;;
+  *) say "stack: origin is not on GitHub (gh checks skipped)" ;;
+esac
+# The engine floor is a note, not a STOP: the claude on PATH is not the desktop
+# app's engine (two engines on Ash's Mac, handoff). The app carries its own.
+if command -v claude >/dev/null 2>&1; then
+  ver="$(claude --version 2>/dev/null | head -1 | awk '{print $1}')"
+  if [ -n "$ver" ] && [ "$(printf '%s\n%s\n' "$ver" 2.1.304 | sort -V | head -1)" != "2.1.304" ]; then
+    say "stack: claude on PATH is $ver, below the 2.1.304 floor (the desktop app carries its own engine; plugin test needs 2.1.304)"
+  else
+    say "stack: claude on PATH is ${ver:-unknown}"
+  fi
+else
+  say "stack: no claude on PATH (the desktop app carries its own engine)"
+fi
+say "stack: seat not checked by this script (plan tier unverified; Ash confirms)"
+
 if [ "$fail" -ne 0 ]; then
   echo "preflight · one or more STOP lines above. Fix them before any work." >&2
   exit 2

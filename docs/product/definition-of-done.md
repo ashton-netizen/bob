@@ -22,7 +22,7 @@ Each line is tickable yes or no by a stranger in a fresh Claude Code session on 
 - [ ] Each new test was seen to fail on its own bug before being trusted.
 - [ ] No skipped suite reported as a pass.
 - [ ] Handover page live: `docs/handoff.md` with decisions, landmines, next steps.
-- [ ] Rollback steps written and rehearsed once (pin or uninstall the plugin version).
+- [x] Rollback steps written and rehearsed once (pin or uninstall the plugin version). · Evidence: docs/evidence/build-3/B3-rollback-rehearsal.txt (22 October 2026, engine 2.1.304, disposable folder: install at project scope, set bob@bob false and the plugin lists disabled, uninstall empties enabledPlugins, reinstall restores it; the other two projects' settings read back untouched). Not rehearsed: pinning a tagged version, because the engine has no pin command; the tag is the release marker only.
 
 ## Standing lines marked N/A for Build 1, with reason
 - Deploy path, preview, 375px and 1440px, tap targets, spend ceiling, rate limit, SSRF, XSS, prompt cache, fire-and-forget alerts, ship-it-safely: N/A. BOB v1 has no web deploy, no paid API call, no user-supplied URL and no rendered untrusted HTML. Re-check at Build 2 if `/bob adopt` adds any of these.

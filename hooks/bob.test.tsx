@@ -602,3 +602,168 @@ test('every repo file is addressed under $.session.root(): adopt writes the five
   expect(w.writes!.map(x => x.path)).toEqual(['bob/ledger.json', 'bob/sources.json', 'bob/approvals.json', 'bob/brief.json', 'docs/project-status.md'])
   for (const x of w.writes!) expect(x.path.startsWith('/')).toBe(false)
 })
+
+// ---------------------------------------------------------------------------
+// Build 3 Part A: the Gate A landmines of docs/handoff.md.
+// ---------------------------------------------------------------------------
+
+// A governed repo with no active increment: Gate A refuses every file-writing
+// command and passes every read-only one.
+async function lockedWorld(on: any) {
+  const w = await approvedWorld(on, { approvals: [] })
+  ;(w.ledger as any) = { ...LEDGER, increments: LEDGER.increments.map(i => ({ ...i, state: i.state === 'active' ? 'proposed' : i.state })) }
+  return w
+}
+
+test('Gate A passes read-only Bash that merely mentions a redirect or a git verb (fd redirects, /dev/null, quoted text) and still refuses a real write', async ($, on) => {
+  await lockedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const bash = async (command: string) => said(await $.tool.call({ tool: 'Bash', command }))
+
+  for (const readOnly of [
+    'grep -n foo docs/handoff.md 2>&1',
+    'ls docs 2>/dev/null',
+    'cat docs/handoff.md > /dev/null',
+    'grep -n "a > b" docs/handoff.md',
+    `grep -rn 'git add' docs`,
+    'echo "git commit and rm are words here"',
+    'git log --oneline | head -5',
+  ]) expect(await bash(readOnly)).toBe('')
+
+  for (const write of [
+    'echo hi > out.txt',
+    'echo hi >> out.txt',
+    'git add -A',
+    'cd /repo && git commit -m x',
+    'ls 2>/dev/null; git push',
+    'cat a | tee out.txt',
+    'sed -i s/a/b/ f',
+    'mv a b',
+  ]) expect(await bash(write)).toContain('Gate A')
+})
+
+test('a Bash write that names bob/brief.json is refused even under a matching approval, because the state guard only sees Edit and Write', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const bash = async (command: string) => said(await $.tool.call({ tool: 'Bash', command }))
+
+  for (const bypass of [
+    `python3 -c "import json;p='bob/brief.json';d=json.load(open(p));open(p,'w').write(json.dumps(d))"`,
+    `sed -i 's/designed/verified/' bob/brief.json`,
+    `echo '{}' > bob/brief.json`,
+    `node -e "require('fs').writeFileSync('bob/brief.json','{}')"`,
+  ]) {
+    const why = await bash(bypass)
+    expect(why).toContain('state guard')
+    expect(why).toContain('Edit or Write')
+  }
+  // Reading it is fine.
+  expect(await bash('cat bob/brief.json')).toBe('')
+  expect(await bash('grep -c requirements bob/brief.json')).toBe('')
+  expect(await bash('git diff -- bob/brief.json')).toBe('')
+})
+
+test('an approval survives a lawful state move on the brief: approve records a scope hash that ignores requirement state and evidence ids; any other change still needs a re-approval', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  await approve($, 'INC-00')
+  const a = JSON.parse(w.files!['bob/approvals.json']).approvals[0]
+  expect(typeof a.scope_hash).toBe('string')
+  expect(a.scope_hash).not.toBe(a.brief_hash)
+
+  const write = async () => said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))
+  expect(await write()).toBe('')
+
+  // A requirement walks one step and gains an evidence id: the file's bytes change.
+  const brief = JSON.parse(w.files!['bob/brief.json'])
+  const r = brief.requirements.find((x: any) => x.id === 'R-P-02')
+  r.state = 'implemented'
+  r.evidence_ids = ['E-P-09']
+  w.files!['bob/brief.json'] = JSON.stringify(brief, null, 2) + '\n'
+  expect(w.files!['bob/brief.json']).not.toBe(JSON.stringify(brief))
+  expect(await write()).toBe('')
+
+  // Key order and whitespace do not matter to the scope hash.
+  const shuffled = { ...brief, requirements: brief.requirements.map((x: any) => Object.fromEntries(Object.entries(x).reverse())) }
+  w.files!['bob/brief.json'] = JSON.stringify(shuffled)
+  expect(await write()).toBe('')
+
+  // A change to what a requirement SAYS needs a new approval.
+  r.text = 'a different promise'
+  w.files!['bob/brief.json'] = JSON.stringify(brief, null, 2) + '\n'
+  expect(await write()).toContain('changed')
+
+  // So does a new requirement.
+  r.text = 'only prose'
+  brief.requirements.push(areq('R-P-03', 'late add', 'not_assessed'))
+  w.files!['bob/brief.json'] = JSON.stringify(brief, null, 2) + '\n'
+  expect(await write()).toContain('changed')
+})
+
+test('an approval written before 0.3.0 (brief_hash only) still works byte for byte and is never rewritten', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+})
+
+test('a brief that no longer parses names the open file pane as a likely cause', async ($, on) => {
+  await approvedWorld(on, { files: { 'bob/brief.json': '{ /bob approve INC-01 "requirements": [] }' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const why = said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))
+  expect(why).toContain('does not parse')
+  expect(why).toContain('file pane')
+})
+
+// ---------------------------------------------------------------------------
+// Build 3 Part A: R12 reconcile after an interrupted run (not only a stale flag).
+// ---------------------------------------------------------------------------
+
+const reconcile = async ($: any) => String((await $.command.run({ command: 'bob', args: 'reconcile' })).text ?? '')
+const runOf = (state: string, lastEventAt: string) => ({ ...LEDGER.runs[0], id: 'RUN-T-7', state, last_event_at: lastEventAt, exit_reason: null })
+const withRuns = (runs: unknown[], events: unknown[] = []) => ({ ...LEDGER, runs, events: [...LEDGER.events, ...events] })
+
+test('reconcile closes a run left running with no event past the stale window: failed (interrupted) with one reconciled event, increments untouched, only the ledger written', async ($, on) => {
+  const w = await approvedWorld(on, { ledger: withRuns([runOf('running', '2026-10-21T09:00:00+11:00')]) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await reconcile($)
+  expect(out).toContain('RUN-T-7')
+  expect(out).toContain('failed')
+
+  expect(w.writes!.map(x => x.path)).toEqual(['bob/ledger.json'])
+  const l = JSON.parse(w.files!['bob/ledger.json'])
+  const run = l.runs.find((r: any) => r.id === 'RUN-T-7')
+  expect(run.state).toBe('failed')
+  expect(run.exit_reason).toBe('interrupted')
+  const ev = l.events.filter((e: any) => e.run_id === 'RUN-T-7' && e.type === 'reconciled')
+  expect(ev.length).toBe(1)
+  expect(ev[0].origin).toBe('bob')
+  expect(ev[0].is_synthetic).toBe(false)
+  expect(l.increments).toEqual(LEDGER.increments)
+
+  // A second reconcile finds nothing to do and writes nothing.
+  const n = w.writes!.length
+  expect(await reconcile($)).toContain('nothing to reconcile')
+  expect(w.writes!.length).toBe(n)
+})
+
+test('reconcile completes a stale run that already has a finished event, and leaves a fresh run and a completed run alone', async ($, on) => {
+  const fresh = { ...runOf('running', new Date().toISOString()), id: 'RUN-T-8' }
+  const finished = { id: 'EV-T-F', run_id: 'RUN-T-7', at: '2026-10-21T09:05:00+11:00', origin: 'runtime', type: 'finished', detail: 'exit success', ...base('tool') }
+  const w = await approvedWorld(on, { ledger: withRuns([LEDGER.runs[0], runOf('verifying', '2026-10-21T09:00:00+11:00'), fresh], [finished]) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  // Before it runs, the board names the command.
+  expect(String(((await $.command.run({ command: 'bob', args: '' })) as any).text ?? '')).toContain('/bob reconcile')
+  await reconcile($)
+  const l = JSON.parse(w.files!['bob/ledger.json'])
+  expect(l.runs.find((r: any) => r.id === 'RUN-T-7').state).toBe('completed')
+  expect(l.runs.find((r: any) => r.id === 'RUN-T-8').state).toBe('running')
+  expect(l.runs.find((r: any) => r.id === 'RUN-T-9').state).toBe('completed')
+})
+
+test('reconcile refuses on fixtures: synthetic records are never reconciled', async ($, on) => {
+  const w = await approvedWorld(on, { governed: false, ledger: withRuns([runOf('running', '2026-10-21T09:00:00+11:00')]) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(await reconcile($)).toContain('refused')
+  expect(w.writes!.length).toBe(0)
+})

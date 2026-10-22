@@ -119,5 +119,58 @@ expect_clear "ungoverned without a status file" "$d"
 d="$(scaffold)"; printf '<script type="text/babel"></script>\n' > "$d/index.html"
 expect_stop "runtime Babel" "$d" "runtime Babel found"
 
+# 7. Stack list (Build 3): git, gh, gh sign-in, repo access, engine floor. Each
+# gap is named, never a value. gh is only required where origin is on GitHub, so
+# the folders above (no remote) stay clear. BOB_GIT and BOB_GH are the script's
+# test seams (a path to the tool), so a missing tool is reproducible on any OS.
+stubs="$(mktemp -d "${TMPDIR:-/tmp}/bob-stubs.XXXXXX")"
+cat > "$stubs/gh" <<'STUB'
+#!/bin/sh
+case "$1 $2" in
+  "auth status") exit "${STUB_AUTH:-0}" ;;
+  "repo view") exit "${STUB_REPO:-0}" ;;
+esac
+exit 0
+STUB
+chmod +x "$stubs/gh"
+cat > "$stubs/claude" <<'STUB'
+#!/bin/sh
+echo "${STUB_ENGINE:-2.1.304} (Claude Code)"
+STUB
+chmod +x "$stubs/claude"
+with_origin() { ( cd "$1" && git_quiet init -b main && git_quiet remote add origin https://github.com/example/none.git && git_quiet add -A && git_quiet commit -m one && git_quiet switch -c work ); }
+
+d="$(scaffold)"; with_origin "$d"
+OUT="$(cd "$d" && CLAUDE_PROJECT_DIR="$d" BOB_GH="$stubs/gh" PATH="$stubs:$PATH" bash "$PREFLIGHT" 2>&1)"; CODE=$?
+if [ "$CODE" -eq 0 ] && printf '%s' "$OUT" | grep -q "stack: gh signed in" && printf '%s' "$OUT" | grep -q "stack: origin repo reachable" && printf '%s' "$OUT" | grep -q "stack: seat not checked"; then
+  say "stack, all present" "clear, each item named"; pass=$((pass+1))
+else
+  say "stack, all present" "FAILED (exit $CODE)"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
+fi
+
+stack_stop() { # name needle, then env assignments in $@ after shift 2
+  local name="$1" needle="$2"; shift 2
+  d="$(scaffold)"; with_origin "$d"
+  OUT="$(cd "$d" && env CLAUDE_PROJECT_DIR="$d" PATH="$stubs:$PATH" "$@" bash "$PREFLIGHT" 2>&1)"; CODE=$?
+  if [ "$CODE" -eq 2 ] && printf '%s' "$OUT" | grep -q "STOP" && printf '%s' "$OUT" | grep -q -- "$needle"; then
+    say "$name" "red as expected (exit 2, STOP names: $needle)"; pass=$((pass+1))
+  else
+    say "$name" "FAILED: expected exit 2 naming '$needle'; got exit $CODE"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
+  fi
+}
+stack_stop "stack: git missing" "stack gap: git" BOB_GIT="$stubs/no-such-git" BOB_GH="$stubs/gh"
+stack_stop "stack: gh missing" "stack gap: gh (GitHub CLI) not found" BOB_GH="$stubs/no-such-gh"
+stack_stop "stack: gh not signed in" "stack gap: gh is not signed in" BOB_GH="$stubs/gh" STUB_AUTH=1
+stack_stop "stack: no repo access" "stack gap: no access to the origin repo" BOB_GH="$stubs/gh" STUB_REPO=1
+
+# 7b. The engine floor is a note, not a STOP: the PATH claude is not the app's engine.
+d="$(scaffold)"; with_origin "$d"
+OUT="$(cd "$d" && CLAUDE_PROJECT_DIR="$d" BOB_GH="$stubs/gh" STUB_ENGINE=2.1.287 PATH="$stubs:$PATH" bash "$PREFLIGHT" 2>&1)"; CODE=$?
+if [ "$CODE" -eq 0 ] && printf '%s' "$OUT" | grep -q "stack: claude on PATH is 2.1.287, below the 2.1.304 floor"; then
+  say "stack: old PATH engine" "noted, not a STOP (the desktop app carries its own)"; pass=$((pass+1))
+else
+  say "stack: old PATH engine" "FAILED (exit $CODE)"; printf '%s\n' "$OUT" | sed 's/^/    /'; fail=$((fail+1))
+fi
+
 echo "preflight.test · $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
