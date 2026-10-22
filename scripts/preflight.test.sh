@@ -72,13 +72,32 @@ expect_clear "clear, main with its first commit" "$d"
 d="$(scaffold)"; ( cd "$d" && git_quiet init -b main && git_quiet add -A && git_quiet commit -m one && git_quiet switch -c build-1 && echo x > x && git_quiet add -A && git_quiet commit -m two )
 expect_clear "clear, on build-1" "$d"
 
-# 2. A required file is missing: STOP, naming it.
-d="$(scaffold)"; rm "$d/docs/product/product-plan.md"
-expect_stop "plan file missing" "$d" "missing docs/product/product-plan.md"
+# 2. Governed (bob/brief.json) with no plan: STOP, naming it. The plan is
+# docs/product/product-plan.md, or bob/brief.md for a design-room project.
+d="$(scaffold)"; echo '{}' > "$d/bob/brief.json"; echo '{}' > "$d/bob/ledger.json"; rm "$d/docs/product/product-plan.md"
+expect_stop "governed, plan file missing" "$d" "missing docs/product/product-plan.md"
+d="$(scaffold)"; echo '{}' > "$d/bob/brief.json"; echo '{}' > "$d/bob/ledger.json"; rm "$d/docs/product/product-plan.md"; : > "$d/bob/brief.md"
+expect_clear "governed, plan is the design room's bob/brief.md" "$d"
 
-# 3. No ledger and no fixture: STOP.
+# 2a. Not governed and no plan: clear (a new project is designed after /bob new).
+d="$(scaffold)"; rm "$d/docs/product/product-plan.md"
+expect_clear "ungoverned without a plan" "$d"
+
+# 3. Governed with no ledger: STOP.
+d="$(scaffold)"; echo '{}' > "$d/bob/brief.json"; rm "$d/fixtures/ledger.json"
+expect_stop "governed, no ledger" "$d" "missing bob/ledger.json"
+
+# 3a. Not governed, no ledger and no fixture: clear (a new project has neither).
 d="$(scaffold)"; rm "$d/fixtures/ledger.json"
-expect_stop "no ledger and no fixture" "$d" "no ledger and no fixture"
+expect_clear "ungoverned, no ledger and no fixture" "$d"
+
+# 3b. The exact shape /bob new leaves: git init on main, no commit, one status file.
+d="$(mktemp -d "${TMPDIR:-/tmp}/bob-preflight.XXXXXX")"; ( cd "$d" && git_quiet init -b main ); mkdir -p "$d/docs"; : > "$d/docs/project-status.md"
+expect_clear "fresh /bob new project" "$d"
+
+# 3c. The workspace folder itself (no git, bob-workspace.json and CLAUDE.md only).
+d="$(mktemp -d "${TMPDIR:-/tmp}/bob-preflight.XXXXXX")"; echo '{}' > "$d/bob-workspace.json"; : > "$d/CLAUDE.md"
+expect_clear "the workspace folder" "$d"
 
 # 4. A placeholder key in .env: STOP, naming the key NAME only.
 d="$(scaffold)"; printf 'FAKE_SERVICE_KEY=YOUR_KEY_HERE\n' > "$d/.env"

@@ -223,5 +223,38 @@
     "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) (or scope_hash == the brief's scope hash, see approval.scope_hash) and the active increment in scope_increment_ids; a Bash write to bob/brief.json is refused outright because the state guard sees Edit and Write only",
     "B_evidence": "block the end of a turn when the active increment's requirement_ids gained no evidence record during this run",
     "preflight": "scripts/preflight.sh on SessionStart"
+  },
+  "workspace": {
+    "$comment": "Build 3 (Cowork ADR-03). One BOB workspace folder per machine (for example ~/BOB), opened once as a saved environment. bob-workspace.json at its root registers each project, a subfolder, and names the current one. Every repo path, both gates, the preflight, /bob adopt and the pane resolve under the current project. /bob new and /bob switch are its only writers. The workspace is never a git repo; each project is its own.",
+    "file": "bob-workspace.json",
+    "fields": [
+      "id",
+      "created_at",
+      "source",
+      "is_synthetic",
+      "current",
+      "projects"
+    ],
+    "project_fields": [
+      "id",
+      "name",
+      "path",
+      "created_at",
+      "source",
+      "is_synthetic"
+    ],
+    "project_name_pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+    "reserved_names": [
+      "bob",
+      "docs",
+      "fixtures",
+      "sources",
+      "templates"
+    ],
+    "template": "templates/workspace/CLAUDE.md (in the plugin; copied to the workspace root once, never overwritten)",
+    "writers": [
+      "/bob new",
+      "/bob switch"
+    ]
   }
 }

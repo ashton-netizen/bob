@@ -27,8 +27,12 @@ type Model = {
   // working directory, which is the plugin folder, not the repo (seen live on
   // 21 October 2026: /bob adopt refused "bob/ledger.json already exists").
   root: string
+  // Where this session sits: a plain repo, or a BOB workspace and its current project.
+  place: Place
   governed: boolean
   ownLedger: boolean
+  // Not governed and no ledger of its own, but fixtures/ exists here (BOB's own repo).
+  fixtures: boolean
   schema: Any | null
   brief: Any | null
   approvals: Any[]
@@ -106,20 +110,53 @@ async function scopeHashOf(brief: Any): Promise<string | null> {
   }
 }
 
-// The repo root, absolute. The one home for resolving a repo path.
-async function repoRoot($: Engine): Promise<string> {
-  const root = String(await $.session.root())
-  return root.replace(/\/+$/, '')
-}
 const at = (root: string, path: string) => `${root}/${path}`
+
+// Build 3 (Cowork ADR-03): the BOB workspace. One folder per machine, opened as
+// a saved environment, holds bob-workspace.json and one subfolder per project.
+// A session on it works on the CURRENT project, so every repo path resolves
+// under that subfolder: the gates, the preflight, /bob adopt and the pane all
+// follow /bob switch. A file that does not parse fails closed (Gate A refuses).
+const WORKSPACE_FILE = 'bob-workspace.json'
+
+type Place = {
+  session: string
+  root: string
+  workspace: Any | null
+  workspaceError: string | null
+  project: string
+}
+
+async function locate($: Engine): Promise<Place> {
+  const session = String(await $.session.root()).replace(/\/+$/, '')
+  const folder = session.replace(/^.*\//, '') || session
+  const plain: Place = { session, root: session, workspace: null, workspaceError: null, project: folder }
+  if (!(await exists($, at(session, WORKSPACE_FILE)))) return plain
+  const errors: string[] = []
+  const workspace = await readJson($, at(session, WORKSPACE_FILE), errors)
+  if (!workspace || typeof workspace !== 'object' || Array.isArray(workspace)) return { ...plain, workspaceError: errors[0] ?? `${at(session, WORKSPACE_FILE)} is not a JSON object` }
+  const current = ((workspace.projects ?? []) as Any[]).find(p => p && p.name === workspace.current)
+  if (!current) return { ...plain, workspace, project: '' }
+  const path = String(current.path ?? '')
+  if (!path || path.startsWith('/') || path.split('/').includes('..')) return { ...plain, workspaceError: `${WORKSPACE_FILE}: project ${current.name} has path "${path}", which is not a subfolder of the workspace` }
+  return { session, root: at(session, path), workspace, workspaceError: null, project: String(current.name) }
+}
+
+// The repo root, absolute: the current project inside a workspace, else the
+// session root. The one home for resolving a repo path.
+async function repoRoot($: Engine): Promise<string> {
+  return (await locate($)).root
+}
 
 async function load($: Engine): Promise<Model> {
   const parseErrors: string[] = []
-  const root = await repoRoot($)
+  const place = await locate($)
+  const root = place.root
   const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, parseErrors)
   const governed = await exists($, at(root, 'bob/brief.json'))
   // The repo's own ledger wins over fixtures as soon as it exists, brief or not.
   const ownLedger = governed || (await exists($, at(root, 'bob/ledger.json')))
+  const fixtures = !ownLedger && (await exists($, at(root, 'fixtures/ledger.json')))
   const dir = ownLedger ? 'bob' : 'fixtures'
   const brief = await readJson($, at(root, `${dir}/brief.json`), parseErrors)
   const approvals = ((await readJson($, at(root, `${dir}/approvals.json`), parseErrors))?.approvals ?? []) as Any[]
@@ -133,7 +170,7 @@ async function load($: Engine): Promise<Model> {
   }
   const hash = brief ? await sha256File($, at(root, `${dir}/brief.json`)) : null
   const scopeHash = brief ? await scopeHashOf(brief) : null
-  return { root, governed, ownLedger, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, scopeHash, parseErrors }
+  return { root, place, governed, ownLedger, fixtures, schema, brief, approvals, ledger, ledgerPath, ledgerMtimeMs, hash, scopeHash, parseErrors }
 }
 
 // The test kit's $ has no ui.invalidate; a live session does.
@@ -155,6 +192,7 @@ type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: s
 // Gate A: deny unless an approval record has brief_hash == sha256(bob/brief.json)
 // and the active increment in scope_increment_ids (bob/schema.json, gates.A_approval).
 function approvalVerdict(m: Model): Verdict {
+  if (m.place.workspaceError) return { ok: false, reason: m.place.workspaceError, next: WORKSPACE_REPAIR }
   if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
   if (!m.schema) return { ok: false, reason: 'bob/schema.json is missing or does not parse in the plugin folder', next: 'Ash needs to reinstall BOB' }
   if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. A typed /bob command lands in an open file pane: Ash needs to close file panes before typing one' }
@@ -285,15 +323,20 @@ function proposalRefusals(schema: Any, p: Any): string[] {
   return out
 }
 
-const refusedText = (what: string, reasons: string[]) =>
-  [`BOB ${what} refused. Nothing was written.`, ...reasons.map(r => `- ${r}`), `Next action: Claude: fix the proposal at ${PROPOSAL_PATH} and run /bob ${what} again.`].join('\n')
+const refusedText = (what: string, reasons: string[], next = `Claude: fix the proposal at ${PROPOSAL_PATH} and run /bob ${what} again`) =>
+  [`BOB ${what} refused. Nothing was written.`, ...reasons.map(r => `- ${r}`), `Next action: ${next}.`].join('\n')
+
+const WORKSPACE_REPAIR = `Ash needs to rename ${WORKSPACE_FILE} in Finder (for example to bob-workspace.broken.json, never delete it), then type /bob switch <project> to register the project again`
 
 async function adopt($: Engine): Promise<string> {
   const errors: string[] = []
   const schema = await readJson($, `${$.plugin.root}/bob/schema.json`, errors)
   if (!schema) return refusedText('adopt', ['bob/schema.json is missing or does not parse in the plugin folder. Ash needs to reinstall BOB'])
 
-  const root = await repoRoot($)
+  const place = await locate($)
+  if (place.workspaceError) return refusedText('adopt', [place.workspaceError], WORKSPACE_REPAIR)
+  if (place.workspace && !place.project) return refusedText('adopt', ['this is the BOB workspace and no project is current, so there is nothing to adopt'], 'Ash needs to type /bob switch <project> (or /bob new <name>) first')
+  const root = place.root
   const existing: string[] = []
   for (const f of BOB_FILES) if (await exists($, at(root, f))) existing.push(f)
   if (existing.length) return refusedText('adopt', existing.map(f => `${f} already exists; adopt never overwrites a governed repo's files`))
@@ -406,6 +449,131 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   ].join('\n')
 }
 
+// ---------------------------------------------------------------------------
+// Build 3: /bob new and /bob switch (Cowork ADR-03). A person types them in a
+// session opened on the BOB workspace. new makes a project subfolder (git init
+// on main, nothing committed), writes its status file, copies the workspace
+// CLAUDE.md template once, then writes bob-workspace.json LAST with the project
+// current. switch makes an existing subfolder current, registering it when
+// something else made it (the design room does). Neither runs any other git.
+// The name rules live in bob/schema.json (workspace).
+// ---------------------------------------------------------------------------
+
+const RETYPE = 'Ash needs to fix what is named above and type the command again'
+
+async function workspaceRules($: Engine): Promise<Any | null> {
+  return ((await readJson($, `${$.plugin.root}/bob/schema.json`, [])) ?? {}).workspace ?? null
+}
+
+async function placeRefusals($: Engine, place: Place, rules: Any, name: string): Promise<string[]> {
+  const out: string[] = []
+  if (place.workspaceError) out.push(`${place.workspaceError}. ${WORKSPACE_REPAIR}`)
+  if (!new RegExp(String(rules.project_name_pattern)).test(name)) out.push(`"${name}" is not a project name: use lowercase letters, digits and hyphens, up to 40 characters, starting with a letter or digit`)
+  else if (((rules.reserved_names ?? []) as string[]).includes(name)) out.push(`"${name}" is a reserved name inside a BOB workspace`)
+  if (!place.workspace && !place.workspaceError) {
+    if (await exists($, at(place.session, '.git'))) out.push(`${place.session} is a git repo, so it is a project, not the BOB workspace. /bob new and /bob switch run in the workspace folder (one per machine, for example ~/BOB), where each project is a subfolder`)
+    else if ((await exists($, at(place.session, 'bob/brief.json'))) || (await exists($, at(place.session, 'bob/ledger.json')))) out.push(`${place.session} holds bob/ files, so it is a project, not the BOB workspace`)
+  }
+  return out
+}
+
+// Writes bob-workspace.json with `name` current, adding its record when new.
+async function registerProject($: Engine, place: Place, name: string, source: string): Promise<boolean> {
+  const now = stamp()
+  const file: Any = place.workspace ?? {
+    $comment: `The BOB workspace register. Written only by /bob new and /bob switch; never edit by hand. Shape: bob/schema.json (workspace) in the BOB plugin.`,
+    id: 'WS-01',
+    created_at: now,
+    source: 'tool',
+    is_synthetic: false,
+    current: null,
+    projects: [],
+  }
+  const projects = ((file.projects ?? []) as Any[])
+  const known = projects.some(p => p.name === name)
+  const record = { id: `P-${String(projects.length + 1).padStart(2, '0')}`, name, path: name, created_at: now, source, is_synthetic: false }
+  await $.fs.write(at(place.session, WORKSPACE_FILE), pretty({ ...file, current: name, projects: known ? projects : [...projects, record] }))
+  return !known
+}
+
+// The project changed under the session: rerun the preflight there and start
+// Gate B's round afresh against the new project's ledger.
+async function moved($: Engine) {
+  await runPreflight($)
+  await resetRound($)
+  redraw($)
+}
+
+async function newProject($: Engine, nameArg: string, originKind: string | undefined): Promise<string> {
+  const name = nameArg.trim()
+  if (!name) return refusedText('new', ['no project name given. Usage: /bob new <name> (lowercase letters, digits and hyphens)'], RETYPE)
+  const rules = await workspaceRules($)
+  if (!rules) return refusedText('new', ['bob/schema.json in the plugin folder has no workspace section'], 'Ash needs to reinstall BOB')
+  const place = await locate($)
+  const why = await placeRefusals($, place, rules, name)
+  if (why.length) return refusedText('new', why, RETYPE)
+  const dir = at(place.session, name)
+  if (await exists($, dir)) return refusedText('new', [`${name} already exists in this workspace. Type /bob switch ${name} to work on it`], RETYPE)
+
+  let git: Any = null
+  try {
+    git = await $.process.run(['git', '--version'], { cwd: place.session })
+  } catch {
+    git = null
+  }
+  if (!git || git.exitCode !== 0) return refusedText('new', ['stack gap: git not found, and every BOB project is a git repo'], 'Ash needs to install git, then type /bob new again')
+  const init = await $.process.run(['git', 'init', '-b', 'main', dir], { cwd: place.session })
+  if (init.exitCode !== 0) return refusedText('new', [`git init failed for ${dir}: ${String(init.stderr ?? '').trim() || `exit ${init.exitCode}`}`], RETYPE)
+
+  const wrote: string[] = []
+  const now = stamp()
+  await $.fs.write(at(dir, 'docs/project-status.md'), `# ${name} · project status (living file, update in place)\n\nA BOB project in the workspace ${place.session}. Not governed yet: no bob/brief.json.\n\n## Build log (one line per step: step, state, evidence)\n- /bob new, ${now}: implemented. Folder ${dir} made, git initialised on main, nothing committed; registered in ${WORKSPACE_FILE} as the current project. Next: Ash needs to design it with the design-with-bob skill; Claude then writes the adopt proposal and Ash types /bob adopt.\n`)
+  wrote.push(`${name}/docs/project-status.md`)
+  const notes: string[] = []
+  if (!(await exists($, at(place.session, 'CLAUDE.md')))) {
+    const template = await readText($, `${$.plugin.root}/templates/workspace/CLAUDE.md`)
+    if (template !== null) {
+      await $.fs.write(at(place.session, 'CLAUDE.md'), template)
+      wrote.push('CLAUDE.md (the workspace template, written once)')
+    } else {
+      notes.push('- skipped CLAUDE.md: the plugin template is missing. Ash needs to reinstall BOB')
+    }
+  }
+  // Last on purpose: the project becomes current only once its folder is whole.
+  await registerProject($, place, name, originKind && NON_HUMAN_ORIGINS.includes(originKind) ? 'tool' : 'human')
+  wrote.push(`${WORKSPACE_FILE} (${name} registered and current)`)
+  await moved($)
+
+  return [
+    `BOB new: project ${name} made at ${dir} and set as the current project.`,
+    `- ran git init -b main (nothing committed)`,
+    ...wrote.map(w => `- wrote ${w}`),
+    ...notes,
+    'The pane now shows this project, and the gates and /bob adopt work on it.',
+    'Next action: Ash needs to design it with the design-with-bob skill (here or in Cowork); Claude then writes the adopt proposal and Ash types /bob adopt.',
+  ].join('\n')
+}
+
+async function switchProject($: Engine, nameArg: string, originKind: string | undefined): Promise<string> {
+  const name = nameArg.trim()
+  if (!name) return refusedText('switch', ['no project name given. Usage: /bob switch <name>'], RETYPE)
+  const rules = await workspaceRules($)
+  if (!rules) return refusedText('switch', ['bob/schema.json in the plugin folder has no workspace section'], 'Ash needs to reinstall BOB')
+  const place = await locate($)
+  const why = await placeRefusals($, place, rules, name)
+  if (why.length) return refusedText('switch', why, RETYPE)
+  const dir = at(place.session, name)
+  if (!(await exists($, dir))) return refusedText('switch', [`${name} is not a folder in this workspace. Type /bob new ${name} to make it`], RETYPE)
+
+  const added = await registerProject($, place, name, originKind && NON_HUMAN_ORIGINS.includes(originKind) ? 'tool' : 'human')
+  await moved($)
+  return [
+    `BOB switch: ${name} is now the current project (${dir}).`,
+    ...(added ? [`- registered ${name} in ${WORKSPACE_FILE}: something other than /bob new made the folder (the design room does)`] : []),
+    'The pane, the gates and /bob adopt now work on it. Nothing was committed.',
+  ].join('\n')
+}
+
 // R12 after an interrupted run: a run still running or verifying with no event
 // past the stale window is closed by a `reconciled` event, never by prose. It
 // becomes completed when the ledger already holds a finished event for it, else
@@ -448,6 +616,28 @@ async function reconcile($: Engine): Promise<string> {
   await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, runs: next, events: [...events, ...added] }))
   redraw($)
   return [`BOB reconcile: ${done.length} run(s) closed: ${done.join('; ')}.`, 'One reconciled event per run was appended to the ledger; increments and requirement states were not touched.', 'Nothing was committed.'].join('\n')
+}
+
+async function runPreflight($: Engine) {
+  try {
+    // The preflight reads the repo, so it runs in the repo (its own fallback is $PWD).
+    const root = await repoRoot($)
+    const ran = await $.process.run(['bash', `${$.plugin.root}/scripts/preflight.sh`], { cwd: root, env: { CLAUDE_PROJECT_DIR: root } })
+    const pf = parsePreflight(ran.exitCode, ran.stdout, ran.stderr, Date.now())
+    await update($, preflightAtom, () => pf)
+    if (pf.stops.length) $.ui.toast(`BOB preflight STOP: ${pf.stops[0]}`)
+  } catch {
+    await update($, preflightAtom, () => parsePreflight(1, '', 'preflight · STOP · scripts/preflight.sh could not run', Date.now()))
+  }
+}
+
+// Gate B's baseline: the evidence the active increment already holds.
+async function resetRound($: Engine) {
+  const m = await load($)
+  const active = activeIncrement(m)
+  const ids = active ? evidenceFor(m, active.requirement_ids ?? []).map(ev => String(ev.id)) : []
+  await update($, baselineAtom, () => ids)
+  await update($, touchedAtom, () => [])
 }
 
 const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.`
@@ -609,6 +799,8 @@ const parsePreflight = (exitCode: number, stdout: string, stderr: string, at: nu
 
 type Row = { id: string; text: string; state: string; known: boolean; evidence: string }
 type Board = {
+  project: string
+  workspace: string | null
   source: string
   increment: string
   approval: string
@@ -647,7 +839,11 @@ function describe(m: Model, pf: Preflight | null, now: number): Board {
   let blocker = blocked.length ? `${blocked.join(', ')} blocked` : 'none'
   if (verdict && !verdict.ok) blocker = verdict.reason
 
+  const fresh = !m.governed && !m.ownLedger && !m.fixtures
   let next = 'Ash needs to: approve an increment and set it active'
+  if (m.place.workspaceError) next = WORKSPACE_REPAIR
+  else if (m.place.workspace && !m.place.project) next = 'Ash needs to: type /bob new <name> to start a project (or /bob switch <name> for one already here)'
+  else if (fresh) next = `Ash needs to: design ${m.place.project} with the design-with-bob skill; Claude then writes the adopt proposal and Ash types /bob adopt`
   if (active) {
     const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
     const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
@@ -666,14 +862,19 @@ function describe(m: Model, pf: Preflight | null, now: number): Board {
   if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Type /bob reconcile to close it`
 
   const notes: string[] = []
-  if (!m.governed && !m.ownLedger) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
+  if (m.place.workspaceError) notes.push(m.place.workspaceError)
+  if (m.fixtures) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
+  if (fresh && !(m.place.workspace && !m.place.project)) notes.push('Not designed yet: no bob/brief.json and no ledger, so no requirements are listed and the gates idle.')
   if (!m.governed && m.ownLedger) notes.push('Not governed: no bob/brief.json, so no requirements are listed and the gates idle.')
   if (m.parseErrors.length) notes.push(...m.parseErrors)
   if (!m.schema) notes.push('bob/schema.json not found in the plugin folder')
   notes.push('No percentage is shown. No state is set from prose.')
 
+  const projects = ((m.place.workspace?.projects ?? []) as Any[]).map(p => String(p.name))
   return {
-    source: m.ownLedger ? m.ledgerPath : `${m.ledgerPath} (synthetic)`,
+    project: m.place.workspace && !m.place.project ? 'none yet' : `${m.place.project} · ${m.root}`,
+    workspace: m.place.workspace ? `${m.place.session} · ${projects.length ? projects.join(', ') : 'no projects yet'}` : null,
+    source: m.ownLedger ? m.ledgerPath : m.fixtures ? `${m.ledgerPath} (synthetic)` : 'no ledger yet',
     increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : 'none active',
     approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? `${active.approval_id ?? 'none'} (fixture, not checked)` : 'none',
     task: started ? String(started.detail ?? '') : 'none recorded',
@@ -690,6 +891,8 @@ function describe(m: Model, pf: Preflight | null, now: number): Board {
 const statusText = (b: Board): string =>
   [
     `BOB · Now (${b.source})`,
+    `Project: ${b.project}`,
+    ...(b.workspace ? [`Workspace: ${b.workspace}`] : []),
     `Increment: ${b.increment}`,
     `Approval: ${b.approval}`,
     `Current task: ${b.task}`,
@@ -716,23 +919,10 @@ const colour = (r: Row) =>
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, adopt this repo from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
+    await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, new <name> (a project in the BOB workspace), switch <name>, adopt this project from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
 
-    try {
-      // The preflight reads the repo, so it runs in the repo (its own fallback is $PWD).
-      const ran = await $.process.run(['bash', `${$.plugin.root}/scripts/preflight.sh`], { cwd: await repoRoot($), env: { CLAUDE_PROJECT_DIR: await repoRoot($) } })
-      const pf = parsePreflight(ran.exitCode, ran.stdout, ran.stderr, Date.now())
-      await update($, preflightAtom, () => pf)
-      if (pf.stops.length) $.ui.toast(`BOB preflight STOP: ${pf.stops[0]}`)
-    } catch {
-      await update($, preflightAtom, () => parsePreflight(1, '', 'preflight · STOP · scripts/preflight.sh could not run', Date.now()))
-    }
-
-    const m = await load($)
-    const active = activeIncrement(m)
-    const ids = active ? evidenceFor(m, active.requirement_ids ?? []).map(ev => String(ev.id)) : []
-    await update($, baselineAtom, () => ids)
-    await update($, touchedAtom, () => [])
+    await runPreflight($)
+    await resetRound($)
 
     void $.ui.open({ id: PANE, title: TITLE })
 
@@ -757,6 +947,8 @@ export const register: Register = on => {
       return { text }
     }
     if (word === 'reconcile') return { text: await reconcile($) }
+    if (word === 'new') return { text: await newProject($, rest.join(' '), (e as Any).origin?.kind) }
+    if (word === 'switch') return { text: await switchProject($, rest.join(' '), (e as Any).origin?.kind) }
     if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
     const m = await load($)
     return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
@@ -845,6 +1037,8 @@ export const register: Register = on => {
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
           <Text weight="semibold">BOB · Now</Text>
+          <Text>Project: {b.project}</Text>
+          {b.workspace ? <Text dimColor>Workspace: {b.workspace}</Text> : null}
           <Text dimColor>{b.source}</Text>
           <Text>Increment: {b.increment}</Text>
           <Text>Approval: {b.approval}</Text>

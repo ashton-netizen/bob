@@ -30,10 +30,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: grep for email addresses and phone numbers in CLAUDE.md, .claude/, bob/, fixtures/
+      - name: grep for email addresses and phone numbers in CLAUDE.md, .claude/, bob/, fixtures/, templates/
         run: |
           set -e
-          hits=$(grep -rnIE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(\+?61|0)[2-9][0-9 ]{8,}' CLAUDE.md .claude bob fixtures 2>/dev/null || true)
+          hits=$(grep -rnIE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(\+?61|0)[2-9][0-9 ]{8,}' CLAUDE.md .claude bob fixtures templates 2>/dev/null || true)
           if [ -n "$hits" ]; then echo "$hits"; echo "personal data found in Claude files"; exit 1; fi
           echo "clean"
 
