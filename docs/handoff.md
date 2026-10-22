@@ -35,6 +35,8 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 
 - Brand one home (22 October 2026): `assets/bob/` and `assets/step-change/` from the verified pack, context in `references/bob-brand/`. Cowork's earlier set is parked in `assets/brand/_superseded/`; do not revive it. The favicon has no target until BOB renders a page; the pack's name expansion "Build Optimisation Buddy" differs from the plan's "Build Optimisation Brief" and is unapplied until the plan decides.
 
+- gitleaks reads a SHA-256 digest beside the word "tokens" as a generic API key (pull request 13, 22 October 2026). Fix by one fingerprint line in `.gitleaksignore` (commit:file:rule:line), never a path or rule allowlist. Keep hash manifests out of the repo where git's own hashes already serve.
+
 ## Known landmines
 - GATE B WAS NOT SEEN TO BLOCK in the parent Part B session (22 October 2026): a round wrote files under INC-01 with no evidence record for R-AQ-13 and the turn ended with no block. That session had the plugin installed mid-session (never a `session.start` there), and the Stop hook may not be chained in that case. Not seen is recorded as not seen; a session that loads the plugin at start should capture one block before Gate B counts as proven live.
 - GATE A'S BASH DETECTOR has false positives: `2>&1`, `2>/dev/null` and a `>` inside a quoted grep pattern match the redirect rule, so read-only commands are refused with no active increment. Write read-only commands without `>` characters, or fix the regex in Build 3.
