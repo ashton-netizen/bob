@@ -45,6 +45,12 @@ const SCHEMA = {
     access_values: ['available', 'permission_needed', 'missing', 'inaccessible'],
     processing_values: ['queued', 'reading', 'extracted', 'partial', 'failed', 'unsupported'],
   },
+  // Mirrors bob/schema.json's workspace section (Build 3, /bob new).
+  workspace: {
+    file: 'bob-workspace.json',
+    project_name_pattern: '^[a-z0-9][a-z0-9-]{0,39}$',
+    reserved_names: ['bob', 'docs', 'fixtures', 'sources', 'templates'],
+  },
 }
 
 const req = (id: string, text: string, state: string, evidence_ids: string[] = []) => ({
@@ -106,6 +112,10 @@ type World = {
   writes?: { path: string; text: string }[]
   // What `git config user.name` answers.
   userName?: string
+  // Every $.process.run the module made, in order.
+  runs?: { argv: readonly string[]; cwd?: string }[]
+  // git is not installed: every git call exits 127.
+  gitMissing?: boolean
 }
 
 // The repo root the double serves, answered to $.session.root(). Every repo
@@ -134,6 +144,7 @@ const rel = (path: string): string | undefined => {
 function world(on: any, w: World) {
   w.files = w.files ?? {}
   w.writes = w.writes ?? []
+  w.runs = w.runs ?? []
   const governed = () => w.governed || 'bob/brief.json' in w.files!
   const text = (path: string): string | undefined => {
     const r = rel(path)
@@ -144,6 +155,7 @@ function world(on: any, w: World) {
       // also carries BOB's own bob/ledger.json, which is NOT the repo's.
       if (path.endsWith('bob/schema.json') && path !== 'bob/schema.json') return JSON.stringify(SCHEMA)
       if (resolve(path).endsWith('/bob/ledger.json')) return JSON.stringify({ increments: [], runs: [], events: [], evidence: [], $comment: 'the plugin folder\'s own ledger, never the repo\'s' })
+      if (path.endsWith('/templates/workspace/CLAUDE.md')) return '# BOB workspace (template)\n'
       return undefined
     }
     if (r in w.files!) return w.files![r]
@@ -155,7 +167,10 @@ function world(on: any, w: World) {
     return undefined
   }
   on('fs.exists', (_: unknown, e: { path: string }) => {
-    if (rel(e.path) === 'bob/brief.json') return { value: governed() }
+    const r = rel(e.path)
+    if (r === 'bob/brief.json') return { value: governed() }
+    // A folder exists when any file sits under it.
+    if (r !== undefined && Object.keys(w.files!).some(f => f.startsWith(`${r}/`))) return { value: true }
     return { value: text(e.path) !== undefined }
   })
   on('session.root', () => ({ value: ROOT }))
@@ -176,7 +191,18 @@ function world(on: any, w: World) {
     if (text(e.path) === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: { kind: 'file', size: 1, mtimeMs: w.ledgerMtimeMs, isLink: false } }
   })
-  on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
+  // The engine hands the options over as e.init (seen 23 October 2026 on 2.1.304).
+  on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
+    w.runs!.push({ argv: e.argv, cwd: e.init?.cwd })
+    const done = (exitCode: number, stdout = '') => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (e.argv[0] === 'git' && w.gitMissing) return done(127)
+    if (e.argv[0] === 'git' && e.argv[1] === '--version') return done(0, 'git version 2.50.0\n')
+    if (e.argv[0] === 'git' && e.argv[1] === 'init') {
+      // git init <dir> makes the folder: record its .git so the folder exists.
+      const r = rel(String(e.argv[e.argv.length - 1]))
+      if (r !== undefined) w.files![`${r}/.git/HEAD`] = 'ref: refs/heads/main\n'
+      return done(0)
+    }
     if (e.argv[0] === 'git' && e.argv.includes('user.name')) {
       return { value: { exitCode: 0, stdout: `${w.userName ?? 'Test Approver'}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
@@ -765,5 +791,165 @@ test('reconcile refuses on fixtures: synthetic records are never reconciled', as
   const w = await approvedWorld(on, { governed: false, ledger: withRuns([runOf('running', '2026-10-21T09:00:00+11:00')]) })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   expect(await reconcile($)).toContain('refused')
+  expect(w.writes!.length).toBe(0)
+})
+
+// ---------------------------------------------------------------------------
+// Build 3 item 3: the BOB workspace and /bob new (Cowork ADR-03). The session
+// is opened on ONE workspace folder per machine (ROOT here); every project is
+// a subfolder that /bob new creates and registers in bob-workspace.json. The
+// gates, the preflight, adopt and the pane all work on the CURRENT project.
+// ---------------------------------------------------------------------------
+
+const bob = async ($: any, args: string) => String((await $.command.run({ command: 'bob', args })).text ?? '')
+
+// A workspace folder holding only the given files (no ledger, no fixtures).
+async function workspaceWorld(on: any, files: Record<string, string> = {}, over: Partial<World> = {}): Promise<World> {
+  const w: World = { governed: false, brief: undefined, approvals: [], ledger: undefined, ledgerMtimeMs: LAST_EVENT_MS, files, ...over }
+  world(on, w)
+  return w
+}
+
+const wsFile = (names: string[], current: string) => JSON.stringify({
+  id: 'WS-01', current,
+  projects: names.map((name, i) => ({ id: `P-0${i + 1}`, name, path: name, ...real('human') })),
+  ...real('tool'),
+})
+const wsOf = (w: World) => JSON.parse(w.files!['bob-workspace.json'])
+const inits = (w: World) => w.runs!.filter(r => r.argv[0] === 'git' && r.argv[1] === 'init')
+
+test('/bob new in an empty workspace: git init on main in a new subfolder, a status file, the workspace CLAUDE.md from the template, then bob-workspace.json LAST; the pane shows the project and the design step', async ($, on) => {
+  const w = await workspaceWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+
+  const out = await bob($, 'new demo')
+  expect(out).toContain('demo')
+  expect(inits(w).map(r => [...r.argv])).toEqual([['git', 'init', '-b', 'main', `${ROOT}/demo`]])
+  expect(w.writes!.map(x => x.path)).toEqual(['demo/docs/project-status.md', 'CLAUDE.md', 'bob-workspace.json'])
+  expect(w.files!['demo/docs/project-status.md']).toContain('/bob new')
+  expect(w.files!['CLAUDE.md']).toContain('BOB workspace')
+
+  const ws = wsOf(w)
+  for (const f of ['id', 'created_at', 'source', 'is_synthetic']) expect(f in ws).toBe(true)
+  expect(ws.is_synthetic).toBe(false)
+  expect(ws.current).toBe('demo')
+  expect(ws.projects.length).toBe(1)
+  const p = ws.projects[0]
+  expect([p.id, p.name, p.path, p.source, p.is_synthetic]).toEqual(['P-01', 'demo', 'demo', 'human', false])
+  expect(typeof p.created_at).toBe('string')
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^Project:/ }))?.text).toContain('demo')
+  expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toContain('design-with-bob')
+  expect(await ui.find({ type: 'Text', text: /SYNTHETIC/ })).toBe(undefined)
+  await ui.unmount()
+
+  // A second project: registered beside the first, current moves, CLAUDE.md is never rewritten.
+  await bob($, 'new second-one')
+  expect(w.writes!.filter(x => x.path === 'CLAUDE.md').length).toBe(1)
+  expect(wsOf(w).projects.map((x: any) => [x.id, x.name])).toEqual([['P-01', 'demo'], ['P-02', 'second-one']])
+  expect(wsOf(w).current).toBe('second-one')
+})
+
+test('/bob new never overwrites a CLAUDE.md the workspace already has', async ($, on) => {
+  const w = await workspaceWorld(on, { 'CLAUDE.md': '# mine\n' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  await bob($, 'new demo')
+  expect(w.files!['CLAUDE.md']).toBe('# mine\n')
+  expect(w.writes!.map(x => x.path)).toEqual(['demo/docs/project-status.md', 'bob-workspace.json'])
+})
+
+test('/bob new refuses a bad name, a reserved name and a folder that exists, and writes nothing', async ($, on) => {
+  const w = await workspaceWorld(on, { 'taken/docs/project-status.md': 'x' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  for (const bad of ['', 'Demo', 'my project', '../escape', '-x', 'bob', 'a'.repeat(41)]) {
+    expect(await bob($, `new ${bad}`)).toContain('refused')
+  }
+  const taken = await bob($, 'new taken')
+  expect(taken).toContain('refused')
+  expect(taken).toContain('/bob switch taken')
+  expect(w.writes!.length).toBe(0)
+  expect(inits(w).length).toBe(0)
+})
+
+test('/bob new refuses inside a git repo (a project, not the workspace) and when git is missing, writing nothing', async ($, on) => {
+  const inRepo = await workspaceWorld(on, { '.git/HEAD': 'ref: refs/heads/main\n' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const out = await bob($, 'new demo')
+  expect(out).toContain('refused')
+  expect(out).toContain('git repo')
+  expect(inRepo.writes!.length).toBe(0)
+  expect(inits(inRepo).length).toBe(0)
+})
+
+test('/bob new names the stack gap when git is not installed, and writes nothing', async ($, on) => {
+  const w = await workspaceWorld(on, {}, { gitMissing: true })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const out = await bob($, 'new demo')
+  expect(out).toContain('refused')
+  expect(out).toContain('git')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('in a workspace, Gate A, the preflight and the pane work on the CURRENT project, and /bob switch moves them', async ($, on) => {
+  const locked = { increments: LEDGER.increments.map(i => ({ ...i, state: i.state === 'active' ? 'proposed' : i.state, is_synthetic: false })), runs: [], events: [], evidence: [] }
+  const w = await workspaceWorld(on, {
+    'bob-workspace.json': wsFile(['demo', 'other'], 'demo'),
+    'demo/bob/brief.json': JSON.stringify(BRIEF),
+    'demo/bob/ledger.json': JSON.stringify(locked),
+    'demo/bob/approvals.json': JSON.stringify({ approvals: [] }),
+    'demo/docs/project-status.md': '# demo\n',
+    'other/docs/project-status.md': '# other\n',
+  })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+
+  // demo is governed with no active increment: Gate A refuses.
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/demo/notes.md`, content: 'x' }))).toContain('Gate A')
+  expect(w.runs!.filter(r => r.argv[0] === 'bash').slice(-1)[0]?.cwd).toBe(`${ROOT}/demo`)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^Project:/ }))?.text).toContain('demo')
+  await ui.unmount()
+
+  // other is not governed: the gates idle there, and the preflight reruns in it.
+  const out = await bob($, 'switch other')
+  expect(out).toContain('other')
+  expect(wsOf(w).current).toBe('other')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/other/notes.md`, content: 'x' }))).toBe('')
+  expect(w.runs!.filter(r => r.argv[0] === 'bash').slice(-1)[0]?.cwd).toBe(`${ROOT}/other`)
+
+  await bob($, 'switch demo')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/demo/notes.md`, content: 'x' }))).toContain('Gate A')
+})
+
+test('/bob switch registers a subfolder the design room made, refuses one that does not exist, and writes only bob-workspace.json', async ($, on) => {
+  const w = await workspaceWorld(on, { 'idea/bob/brief.md': '# idea\n' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+
+  const missing = await bob($, 'switch nothere')
+  expect(missing).toContain('refused')
+  expect(missing).toContain('/bob new nothere')
+  expect(w.writes!.length).toBe(0)
+
+  await bob($, 'switch idea')
+  expect(w.writes!.map(x => x.path)).toEqual(['bob-workspace.json'])
+  expect(wsOf(w).current).toBe('idea')
+  expect(wsOf(w).projects.map((x: any) => x.name)).toEqual(['idea'])
+  expect(inits(w).length).toBe(0)
+})
+
+test('a workspace with no project yet: the pane names /bob new as the next action', async ($, on) => {
+  await workspaceWorld(on, { 'bob-workspace.json': JSON.stringify({ id: 'WS-01', current: null, projects: [], ...real('tool') }) })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toContain('/bob new')
+  expect(await ui.find({ type: 'Text', text: /SYNTHETIC/ })).toBe(undefined)
+  await ui.unmount()
+})
+
+test('a bob-workspace.json that does not parse fails closed: Gate A refuses and /bob new writes nothing', async ($, on) => {
+  const w = await workspaceWorld(on, { 'bob-workspace.json': '{ not json' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/x.md`, content: 'x' }))).toContain('bob-workspace.json')
+  expect(await bob($, 'new demo')).toContain('refused')
   expect(w.writes!.length).toBe(0)
 })

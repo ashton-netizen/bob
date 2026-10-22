@@ -31,8 +31,14 @@ else
   say "no git repo yet (first session). The kickoff initialises it."
 fi
 
-# 2. The plan must exist in the repo; the data contract lives in the plugin.
-if [ -f docs/product/product-plan.md ]; then say "present docs/product/product-plan.md"; else bad "missing docs/product/product-plan.md"; fi
+# 2. The plan: required once the repo is governed (bob/brief.json exists). It is
+# docs/product/product-plan.md, or bob/brief.md for a design-room project.
+# Before that a project made by /bob new has no plan yet: designing it is next.
+# The data contract lives in the plugin.
+if [ -f docs/product/product-plan.md ]; then say "present docs/product/product-plan.md"
+elif [ -f bob/brief.md ]; then say "present bob/brief.md (the design room's plan)"
+elif [ -f bob/brief.json ]; then bad "missing docs/product/product-plan.md (governed repo; a design-room project has bob/brief.md instead). Ash needs to restore it from git"
+else say "plan absent (not designed yet; the design-with-bob skill writes bob/brief.md)"; fi
 if [ -f "$PLUGIN_ROOT/bob/schema.json" ]; then say "present bob/schema.json (plugin)"; else bad "missing bob/schema.json in the plugin folder $PLUGIN_ROOT. Ash needs to reinstall BOB"; fi
 
 # 2b. The status file: required once the repo is governed (bob/brief.json
@@ -45,10 +51,12 @@ else
   say "status file absent (not governed yet; /bob adopt creates docs/project-status.md)"
 fi
 
-# 3. Ledger: present once Build 1 step 1 has run; before that, fixtures stand in.
+# 3. Ledger: required once governed. Before that, fixtures stand in where they
+# exist; a new project or the workspace folder has neither, and that is fine.
 if [ -f bob/ledger.json ]; then say "ledger bob/ledger.json present"
+elif [ -f bob/brief.json ]; then bad "missing bob/ledger.json (governed repo). Ash needs to restore it from git"
 elif [ -f fixtures/ledger.json ]; then say "ledger not yet created; fixtures/ledger.json stands in (synthetic)"
-else bad "no ledger and no fixture"; fi
+else say "no ledger yet (not governed; /bob adopt writes bob/ledger.json)"; fi
 
 # 4. Keys by NAME only. Any .env* file with an empty, '...' or YOUR_ value is a stop.
 for env in .env .env.local; do
