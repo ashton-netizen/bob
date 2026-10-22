@@ -1,0 +1,182 @@
+{
+  "brief": {
+    "project": {
+      "id": "P-roster",
+      "name": "Roster Request Form (synthetic)",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "human",
+      "is_synthetic": true
+    },
+    "requirements": [
+      {
+        "id": "R-roster-00",
+        "priority": "MUST",
+        "text": "the project is BOB-governed",
+        "check": "bob/ files exist, main unchanged",
+        "state": "not_assessed",
+        "evidence_ids": [],
+        "source_ids": [],
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      },
+      {
+        "id": "R-roster-01",
+        "priority": "MUST",
+        "text": "a submitted request appears as one row in the roster sheet within a minute",
+        "check": "open the sheet after a test submit",
+        "state": "not_assessed",
+        "evidence_ids": [],
+        "source_ids": [
+          "S-02"
+        ],
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      },
+      {
+        "id": "R-roster-02",
+        "priority": "MUST",
+        "text": "the form refuses a request outside the roster rules",
+        "check": "submit an out-of-rules request and see the refusal",
+        "state": "blocked",
+        "evidence_ids": [],
+        "source_ids": [
+          "S-04"
+        ],
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      },
+      {
+        "id": "R-roster-03",
+        "priority": "SHOULD",
+        "text": "a CSV of the week's requests exists every Friday",
+        "check": "open Friday's CSV",
+        "state": "not_assessed",
+        "evidence_ids": [],
+        "source_ids": [
+          "S-02"
+        ],
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      }
+    ],
+    "decisions": [],
+    "assumptions": [
+      {
+        "id": "A-01",
+        "text": "roster sheet shape per U-01 default",
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      }
+    ],
+    "outputs": [
+      {
+        "id": "O-01",
+        "text": "roster sheet row",
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      },
+      {
+        "id": "O-02",
+        "text": "Friday CSV (late change)",
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      }
+    ]
+  },
+  "ledger": {
+    "increments": [
+      {
+        "id": "INC-00",
+        "title": "govern the project under BOB",
+        "requirement_ids": [
+          "R-roster-00"
+        ],
+        "state": "proposed",
+        "approval_id": null,
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      },
+      {
+        "id": "INC-01",
+        "title": "the form and the sheet row",
+        "requirement_ids": [
+          "R-roster-01"
+        ],
+        "state": "proposed",
+        "approval_id": null,
+        "created_at": "2026-10-23T09:00:00+11:00",
+        "source": "ai",
+        "is_synthetic": true
+      }
+    ],
+    "runs": [],
+    "events": [],
+    "evidence": []
+  },
+  "sources": [
+    {
+      "id": "S-01",
+      "name": "notes.v1.md",
+      "type": "markdown",
+      "version": "1",
+      "fingerprint": "bdf9d8b7a44c194df44b7e0af6b85f4890c936bf4ac88a2c4e197e495d4b3407",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-02",
+      "name": "notes.md",
+      "type": "markdown",
+      "version": "2",
+      "fingerprint": "4b0cca6fb988db5f1fb8f59f4cf283af4cbee29b2ae664f7391d6701008df8e9",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-03",
+      "name": "head-office-brief.md",
+      "type": "markdown",
+      "version": "1",
+      "fingerprint": "e2f169730aa30af61b238021642d95304b2848e2f31847bb9abf764e9b2847b6",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-04",
+      "name": "roster-rules.pdf",
+      "type": "pdf",
+      "version": "1",
+      "fingerprint": "59c0933f281a915784cdfc6e61cb34da3ef1379588ba1022f576834ffa626a45",
+      "scope": "project",
+      "access": "available",
+      "processing": "partial",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    }
+  ]
+}

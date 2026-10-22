@@ -1,0 +1,64 @@
+{
+  "$comment": "SYNTHETIC fixture for skills/design-with-bob: the pack's defect scenarios with known answers. Never a real project.",
+  "sources": [
+    {
+      "id": "S-01",
+      "name": "notes.v1.md",
+      "type": "markdown",
+      "version": "1",
+      "fingerprint": "bdf9d8b7a44c194df44b7e0af6b85f4890c936bf4ac88a2c4e197e495d4b3407",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "note": "dropped twice at 09:02 and 09:04: same bytes, one record (R01)",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-02",
+      "name": "notes.md",
+      "type": "markdown",
+      "version": "2",
+      "fingerprint": "4b0cca6fb988db5f1fb8f59f4cf283af4cbee29b2ae664f7391d6701008df8e9",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "note": "revised file with the same name as S-01; new version, S-01 kept",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-03",
+      "name": "head-office-brief.md",
+      "type": "markdown",
+      "version": "1",
+      "fingerprint": "e2f169730aa30af61b238021642d95304b2848e2f31847bb9abf764e9b2847b6",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    },
+    {
+      "id": "S-04",
+      "name": "roster-rules.pdf",
+      "type": "pdf",
+      "version": "1",
+      "fingerprint": "59c0933f281a915784cdfc6e61cb34da3ef1379588ba1022f576834ffa626a45",
+      "scope": "project",
+      "access": "available",
+      "processing": "partial",
+      "knowledge_use": "proposed",
+      "note": "page 2 is an image with no text layer (R02)",
+      "created_at": "2026-10-23T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": true
+    }
+  ]
+}

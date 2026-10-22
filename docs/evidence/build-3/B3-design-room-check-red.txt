@@ -1,0 +1,29 @@
+# Design-room checker, red runs against planted defects, 2026-10-22T21:37Z, python Python 3.9.6. Each mutation copies the synthetic fixture, breaks one rule, expects exit 1 with a REFUSED line naming it (an exit 1 with no REFUSED line is a crash, not red).
+## 1 a requirement set to designed by prose -> exit 1
+design room: REFUSED: requirement R-roster-01: state designed before any build; the design room sets not_assessed or blocked only
+RED as expected
+## 2 the partly unreadable PDF marked extracted -> exit 1
+design room: REFUSED: source S-04: marked extracted but its extracted text says part of it was not read; that is partial
+RED as expected
+## 2b a PDF marked partial with no extracted text beside it -> exit 1
+design room: REFUSED: source S-04: partial but sources/roster-rules.pdf.extracted.txt (the text BOB read) is missing; a file nobody read is queued, failed or unsupported
+RED as expected
+## 3 the same file registered twice -> exit 1
+design room: REFUSED: source S-05: same name and same fingerprint as an earlier record; a duplicate drop is noted on the existing record, never registered twice
+RED as expected
+## 4 a review page generated from an older brief -> exit 1
+design room: REFUSED: docs/evidence/design/journey.md: generated from another brief version (current 5d71510250c2 not in its header); regenerate it from bob/brief.md
+RED as expected
+## 5 the Conflicts section dropped from the brief -> exit 1
+design room: REFUSED: bob/brief.md: section 'Conflicts' missing (write it, empty if need be)
+design room: REFUSED: docs/evidence/design/journey.md: generated from another brief version (current c943aa3a576c not in its header); regenerate it from bob/brief.md
+RED as expected
+## 6 an evidence record claiming a test passed with nothing built -> exit 1
+design room: REFUSED: evidence E-99: the design room has no evidence records; nothing is built
+RED as expected
+## 7 a real-project record (is_synthetic false) inside the fixture -> exit 1
+design room: REFUSED: source S-03: is_synthetic must be true
+RED as expected
+## 8 an increment set active by the design room -> exit 1
+design room: REFUSED: increment INC-00: state must be proposed
+RED as expected
