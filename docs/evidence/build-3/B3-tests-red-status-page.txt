@@ -1,0 +1,69 @@
+
+hooks/bob.test.tsx:
+(pass) the pane draws the ledger on every surface: Now, Board with a blocked chip, Evidence, and a stale flag [53.29ms]
+(pass) Gate A refuses a write when no approval covers the active increment, naming the approval and one next action [21.83ms]
+(pass) Gate A allows a write under a matching approval [19.29ms]
+(pass) Gate A refuses again when bob/brief.json changed by one byte after approval [18.57ms]
+(pass) Gate A idles in a repo BOB does not govern (no bob/brief.json) [24.85ms]
+(pass) a repo with bob/ledger.json but no brief shows its own ledger, not synthetic, and the gates idle [20.98ms]
+(pass) Gate B blocks the end of a round that wrote files but gained no evidence, naming the ids; passes once evidence lands [22.18ms]
+(pass) Gate B lets a round that wrote nothing end [19.72ms]
+(pass) state table: verified without evidence is rejected; accepted from a tool call is rejected; a lawful step is allowed [21.43ms]
+(pass) a preflight STOP shows on the board and in /bob status [22.60ms]
+(pass) adopt refuses a requirement verified with no evidence record, naming the id, and writes nothing [15.97ms]
+(pass) adopt refuses any record missing id, created_at, source or is_synthetic, naming where [14.59ms]
+(pass) adopt refuses is_synthetic true: fixtures/ is the only home for synthetic records [17.53ms]
+(pass) adopt refuses a source without access and processing from bob/schema.json [14.83ms]
+(pass) adopt refuses when a bob/ file already exists [13.93ms]
+(pass) adopt writes ledger, sources, empty approvals, then brief.json LAST, then one status line; Gate A engages only after [20.19ms]
+(pass) adopt appends to an existing docs/project-status.md rather than replacing it [14.66ms]
+(pass) approve appends one immutable human record with the brief hash and the git approver, sets the increment active, and Gate A then allows a write [19.00ms]
+(pass) approve refuses a duplicate for the same increment at the same hash, refuses while another increment is active, and refuses an unknown id [17.96ms]
+(pass) approve refuses when the brief changed after adopt only by re-hashing: a second approval at a new hash is a new record, never an edit [18.00ms]
+(pass) every repo file is addressed under $.session.root(): adopt writes the five files when the plugin folder, not the repo, holds a bob/ledger.json (the live refusal of 21 October 2026) [16.31ms]
+(pass) Gate A passes read-only Bash that merely mentions a redirect or a git verb (fd redirects, /dev/null, quoted text) and still refuses a real write [20.93ms]
+(pass) a Bash write that names bob/brief.json is refused even under a matching approval, because the state guard only sees Edit and Write [18.80ms]
+(pass) an approval survives a lawful state move on the brief: approve records a scope hash that ignores requirement state and evidence ids; any other change still needs a re-approval [19.55ms]
+(pass) an approval written before 0.3.0 (brief_hash only) still works byte for byte and is never rewritten [12.90ms]
+(pass) a brief that no longer parses names the open file pane as a likely cause [13.79ms]
+(pass) reconcile closes a run left running with no event past the stale window: failed (interrupted) with one reconciled event, increments untouched, only the ledger written [14.71ms]
+(pass) reconcile completes a stale run that already has a finished event, and leaves a fresh run and a completed run alone [13.78ms]
+(pass) reconcile refuses on fixtures: synthetic records are never reconciled [15.18ms]
+(pass) /bob new in an empty workspace: git init on main in a new subfolder, a status file, the workspace CLAUDE.md from the template, then bob-workspace.json LAST; the pane shows the project and the design step [19.83ms]
+(pass) /bob new never overwrites a CLAUDE.md the workspace already has [13.88ms]
+(pass) /bob new refuses a bad name, a reserved name and a folder that exists, and writes nothing [17.19ms]
+(pass) /bob new refuses inside a git repo (a project, not the workspace) and when git is missing, writing nothing [12.11ms]
+(pass) /bob new names the stack gap when git is not installed, and writes nothing [12.38ms]
+(pass) in a workspace, Gate A, the preflight and the pane work on the CURRENT project, and /bob switch moves them [29.26ms]
+(pass) /bob switch registers a subfolder the design room made, refuses one that does not exist, and writes only bob-workspace.json [15.16ms]
+(pass) a workspace with no project yet: the pane names /bob new as the next action [17.54ms]
+(fail) a bob-workspace.json that does not parse fails closed: Gate A refuses and /bob new writes nothing [15.42ms]
+  AssertionError: expect(received).toContain()
+  
+  Expected: containing "bob-workspace.json"
+  Received: "BOB Gate A: its guard failed, so this write is refused. Next action: Claude: report the failure to Ash."
+  
+  the engine reported:
+    test's fs.read hook was skipped: test: ENOENT /adopted/repo/fixtures/brief.json
+    test's fs.read hook was skipped: test: ENOENT /adopted/repo/fixtures/ledger.json
+    test's fs.stat hook was skipped: test: ENOENT /adopted/repo/fixtures/ledger.json
+    test's fs.read hook was skipped: test: ENOENT /adopted/repo/fixtures/brief.json
+    test's fs.read hook was skipped: test: ENOENT /adopted/repo/fixtures/ledger.json
+    test's fs.stat hook was skipped: test: ENOENT /adopted/repo/fixtures/ledger.json
+    hook failed closed: bob: errorKind=ReferenceError errorChars=31 (tool.call; its .catch answered)
+    bob's tool.call hook was skipped: bob: WORKSPACE_REPAIR is not defined
+(fail) docs/status.html is written from the ledger at session start and after every /bob command: the increment, every requirement with its state, the next action with its doer, the evidence, no percentage [12.27ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: 1
+  Received: 0
+(pass) docs/status.html is never written from fixtures: an ungoverned repo with no ledger of its own gets no page [18.64ms]
+(fail) docs/status.html escapes requirement text, so a requirement cannot inject markup into the page [15.06ms]
+  AssertionError: expect(received).toContain()
+  
+  Expected: containing "&lt;script&gt;"
+  Received: ""
+
+ 38 pass
+ 3 fail
+Ran 41 tests across 1 file. [0.89s]

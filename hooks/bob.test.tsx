@@ -108,8 +108,11 @@ type World = {
   // Repo files by relative path (the proposal, the status file, and whatever
   // the module writes). A file here wins over the brief/approvals/ledger above.
   files?: Record<string, string>
-  // Every $.fs.write the module made, in order.
+  // Every $.fs.write the module made, in order, EXCEPT docs/status.html.
   writes?: { path: string; text: string }[]
+  // docs/status.html writes: a view of the records, filed apart so the
+  // record-counting tests above stay exact.
+  pages?: { path: string; text: string }[]
   // What `git config user.name` answers.
   userName?: string
   // Every $.process.run the module made, in order.
@@ -144,6 +147,7 @@ const rel = (path: string): string | undefined => {
 function world(on: any, w: World) {
   w.files = w.files ?? {}
   w.writes = w.writes ?? []
+  w.pages = w.pages ?? []
   w.runs = w.runs ?? []
   const governed = () => w.governed || 'bob/brief.json' in w.files!
   const text = (path: string): string | undefined => {
@@ -183,6 +187,10 @@ function world(on: any, w: World) {
     // A write outside the repo is recorded under its resolved path so the
     // test can name it; it never lands in the repo's files.
     const r = rel(e.path) ?? resolve(e.path)
+    if (r === 'docs/status.html') {
+      w.pages!.push({ path: r, text: e.text })
+      return { value: undefined }
+    }
     w.writes!.push({ path: r, text: e.text })
     if (rel(e.path) !== undefined) w.files![r] = e.text
     return { value: undefined }
@@ -952,4 +960,46 @@ test('a bob-workspace.json that does not parse fails closed: Gate A refuses and 
   expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/x.md`, content: 'x' }))).toContain('bob-workspace.json')
   expect(await bob($, 'new demo')).toContain('refused')
   expect(w.writes!.length).toBe(0)
+})
+
+// ---------------------------------------------------------------------------
+// Build 3: docs/status.html, the board as a branded page in the governed repo.
+// ---------------------------------------------------------------------------
+
+const statusPage = (w: World) => w.pages!
+
+test('docs/status.html is written from the ledger at session start and after every /bob command: the increment, every requirement with its state, the next action with its doer, the evidence, no percentage', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(statusPage(w).length).toBe(1)
+  const html = statusPage(w)[0].text
+  expect(html).toContain('<!doctype html>')
+  expect(html).toContain('<title>BOB ·')
+  for (const id of ['INC-T-2', 'R-T-01', 'R-T-02', 'R-T-03', 'R-T-04', 'R-T-05', 'E-T-03']) expect(html).toContain(id)
+  expect(html).toContain('blocked')
+  expect(html).toContain('CLAUDE')
+  expect(html).toContain('capture evidence for R-T-04')
+  expect(html).toContain('No percentage')
+  expect(html).not.toContain('undefined')
+  expect(html).not.toContain('%')
+  expect(html).toContain('data:image/png;base64,')
+
+  await $.command.run({ command: 'bob', args: '' })
+  expect(statusPage(w).length).toBe(2)
+})
+
+test('docs/status.html is never written from fixtures: an ungoverned repo with no ledger of its own gets no page', async ($, on) => {
+  const w = await approvedWorld(on, { governed: false })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'bob', args: '' })
+  expect(statusPage(w).length).toBe(0)
+})
+
+test('docs/status.html escapes requirement text, so a requirement cannot inject markup into the page', async ($, on) => {
+  const brief = { requirements: [req('R-T-01', '<script>alert(1)</script> & "quotes"', 'designed')] }
+  const w = await approvedWorld(on, { brief })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const html = statusPage(w)[0]?.text ?? ''
+  expect(html).not.toContain('<script>alert')
+  expect(html).toContain('&lt;script&gt;')
 })
