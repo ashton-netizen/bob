@@ -1,0 +1,165 @@
+{
+  "$comment": "Written by hand from docs/evidence/adopt/adopt-proposal.json on 23 October 2026 because /bob adopt refuses a repo that already holds bob/ledger.json (R-bob-05). States and transitions: bob/schema.json. No state here comes from prose.",
+  "project": {
+    "id": "P-bob",
+    "name": "BOB, governed by BOB",
+    "created_at": "2026-10-23T13:30:00+11:00",
+    "source": "human",
+    "is_synthetic": false
+  },
+  "requirements": [
+    {
+      "id": "R-bob-00",
+      "priority": "MUST",
+      "text": "the BOB repo is BOB-governed: bob/brief.json exists, main unchanged until approved",
+      "check": "Gate A refuses an unapproved write in a session on this repo",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-01",
+      "priority": "MUST",
+      "text": "every BOB round ends with a report of at most three lines (stage, live, next step with its doer) before any detail",
+      "check": "a round whose closing report breaks the shape is blocked at Stop with the shape named",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-01",
+        "S-02"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-02",
+      "priority": "MUST",
+      "text": "each decision for Ash is asked once, as one popup, in the window that will run the answer, and the ask names that window",
+      "check": "the next adoption costs Ash exactly two typed commands and no retry",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-01",
+        "S-02"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-03",
+      "priority": "MUST",
+      "text": "a /bob command typed in a session where the plugin is not loaded is answered with the window to use",
+      "check": "typing /bob status in a session on a non-BOB folder returns one line naming the workspace session",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-01"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-04",
+      "priority": "MUST",
+      "text": "a session on a governed repo opens with the board visible: pane drawn, docs/status.html written and its path in the first message, before any question",
+      "check": "the first assistant message of a session on ~/BOB or VGA names docs/status.html",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-01"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-05",
+      "priority": "MUST",
+      "text": "/bob adopt accepts a repo that already holds bob/ledger.json, merging increments and never overwriting a record",
+      "check": "adopt on this repo writes bob/brief.json and appends increments with every existing ledger record byte-identical",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-03"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-06",
+      "priority": "SHOULD",
+      "text": "after /bob approve, the pane and the page show the approver and the time within the same turn",
+      "check": "the page's APPROVAL field names the AP record",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-03"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-07",
+      "priority": "SHOULD",
+      "text": "the design room's first run in Cowork is recorded with what Ash saw and disliked, as sources for the next increment",
+      "check": "a sources/ file from that run exists",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": [
+        "S-01"
+      ],
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D-01",
+      "text": "BOB's own build runs under BOB from 23 October 2026; every later change is an approved increment",
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "human",
+      "is_synthetic": false
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-01",
+      "text": "a Stop hook can read the closing report (U-02)",
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "A-02",
+      "text": "a user-level instruction line can answer a /bob command where the plugin is not loaded (U-01)",
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    }
+  ],
+  "outputs": [
+    {
+      "id": "O-01",
+      "text": "docs/status.html for the BOB repo",
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "O-02",
+      "text": "a three-line closing report every round",
+      "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    }
+  ]
+}

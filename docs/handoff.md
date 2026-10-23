@@ -20,6 +20,12 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - The spike's own test is archived (`plugin-spike/hooks/pane.test.tsx.archived`): `claude plugin test .` collects every test under the repo and the root plugin answers the same pane id, so the two cannot share one test tree. Its last green run is in docs/evidence/build-1.
 - MANIFEST.json describes the start pack as shipped; after Build 1 `check_manifest.py` reports drift by design. Do not regenerate it to make the check green; it is the pack's record, not the repo's.
 
+## BOB under BOB (23 October 2026, Ash's yes by popup)
+- From this commit the BOB repo is governed by its own plugin: `bob/brief.json` (eight requirements from Ash's own words on the awful experience, all not_assessed), INC-00 (govern) and INC-01 (the three-line report gate and the wrong-window answer) in `bob/ledger.json`, the plugin installed at project scope in `.claude/settings.json`. The next session on this folder loads the gates: no write until Ash types `/bob approve INC-00`, no round ends without evidence, `docs/status.html` written at start.
+- The brief was made by the design-with-bob stages run here (sources in `sources/`, review pages in `docs/evidence/design/`, build-brief Check mode in readiness.md, verdict REVISE, OQ-1 appetite and OQ-2 plan text open for Ash).
+- `/bob adopt` refuses a repo with a ledger, so the governed files were written by hand from the proposal with an assert that every existing ledger record stayed byte-identical. R-bob-05 makes adopt handle this next time.
+- Landmine: the commit that governs a repo must be made in the session that wrote the files, before the plugin loads there; after that, Gate A refuses it until approval.
+
 ## Decisions taken in the Build 3 session (23 October 2026, the board page)
 - The branded interface is `docs/status.html` in the governed repo, written by the plugin from the ledger (session start, every /bob command, end of round), never by hand and never from fixtures. It is the wireframe Ash saw on 22 October made real; the pane stays plain engine text. `hooks/board.ts` is the one home for board logic; `scripts/render-status.ts` renders the same page outside a session (node 22.6+). The page is gitignored in this repo; an adopted repo decides for itself (adopt does not add it to .gitignore yet).
 - Engine rule learned: a function that takes `$` must be declared at the top level of the module (the scan refuses a nested one); hence `bobCommand` sits beside `register`.
