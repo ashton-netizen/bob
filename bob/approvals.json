@@ -1,0 +1,17 @@
+{
+  "approvals": [
+    {
+      "id": "AP-01",
+      "brief_hash": "f36310dc094cd0d324fb5a351fb349657363eb025e0deadde182195ec88ff96a",
+      "scope_hash": "dc9adf09052073642ee198e86307d77533ba57dca0cf7906b97e377a61435c03",
+      "scope_increment_ids": [
+        "INC-00"
+      ],
+      "approver": "Ashton Bishop",
+      "approved_at": "2026-10-23T02:36:32.533Z",
+      "created_at": "2026-10-23T02:36:32.533Z",
+      "source": "human",
+      "is_synthetic": false
+    }
+  ]
+}

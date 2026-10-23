@@ -1,0 +1,10 @@
+# Gate A, seen live on the BOB repo itself, 23 October 2026 (R-bob-00)
+Session: the Build 3 session on /Users/ash/Downloads/BOB_Claude-Code-Start-Pack_v1, branch bob-on-bob, after the plugin loaded mid-session (its skills appeared in the session's skill list) and bob/brief.json existed with no active increment.
+Tool call refused: Bash (a python3 heredoc that would have patched .github/workflows/gate.yml).
+Engine result, verbatim:
+  BOB Gate A refused this write. no increment in bob/ledger.json has state active. Next action: Ash needs to type /bob approve INC-00 (the only writer of bob/approvals.json).
+Then Ash typed /bob approve INC-00 in the same window. Engine output, verbatim:
+  bob: BOB approve: AP-01 written to bob/approvals.json by Ashton Bishop for INC-00 at brief hash f36310dc094c.
+  INC-00 is now active (approved, then active). Gate A allows writes under it; Gate B requires evidence for R-bob-00 before a round that writes can end.
+  Nothing was committed.
+The write below this file (this file itself, under INC-00) was allowed.
