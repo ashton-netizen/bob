@@ -2,6 +2,9 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Preflight } from '../types'
+import { STALE_MS, activeIncrement, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
+import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
+import type { Any, Model, Place, Verdict } from './board'
 
 // BOB, Build 1. One hooks module: the board pane, Gate A (approval), Gate B
 // (evidence), the state-table guard, the session preflight and /bob.
@@ -18,33 +21,7 @@ const preflightAtom = atom({ plugin: 'bob', key: 'preflight' } as const, null as
 const baselineAtom = atom({ plugin: 'bob', key: 'baseline' } as const, [] as string[])
 const touchedAtom = atom({ plugin: 'bob', key: 'touched' } as const, [] as string[])
 
-type Any = Record<string, any>
 type Engine = Any
-
-type Model = {
-  // The repo root, absolute, from $.session.root(). Every repo file is read and
-  // written under it: a bare relative path resolves against the engine's own
-  // working directory, which is the plugin folder, not the repo (seen live on
-  // 21 October 2026: /bob adopt refused "bob/ledger.json already exists").
-  root: string
-  // Where this session sits: a plain repo, or a BOB workspace and its current project.
-  place: Place
-  governed: boolean
-  ownLedger: boolean
-  // Not governed and no ledger of its own, but fixtures/ exists here (BOB's own repo).
-  fixtures: boolean
-  schema: Any | null
-  brief: Any | null
-  approvals: Any[]
-  ledger: Any | null
-  ledgerPath: string
-  ledgerMtimeMs: number | null
-  hash: string | null
-  // sha256 of the brief with requirement state and evidence_ids left out, keys sorted
-  // (see scopeHashOf). A lawful state move changes `hash` and never this.
-  scopeHash: string | null
-  parseErrors: string[]
-}
 
 async function readText($: Engine, path: string): Promise<string | null> {
   try {
@@ -73,11 +50,6 @@ async function exists($: Engine, path: string): Promise<boolean> {
   }
 }
 
-async function sha256Bytes(bytes: Uint8Array): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
 async function sha256File($: Engine, path: string): Promise<string | null> {
   try {
     const { base64 } = (await $.fs.read(path, { as: 'bytes' })) as { base64: string }
@@ -90,26 +62,6 @@ async function sha256File($: Engine, path: string): Promise<string | null> {
   }
 }
 
-// Build 3: what an approval covers. A requirement walking one step through the
-// state table (and gaining an evidence id) is guarded by the state guard, so it
-// must not cost a re-approval; what a requirement SAYS, and which requirements
-// exist, must. Canonical JSON (sorted keys) so whitespace and key order never
-// matter. An approval written before 0.3.0 carries brief_hash only and keeps
-// working byte for byte.
-const canonical = (v: unknown): string =>
-  Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
-  : v && typeof v === 'object' ? `{${Object.keys(v as Any).sort().map(k => `${JSON.stringify(k)}:${canonical((v as Any)[k])}`).join(',')}}`
-  : JSON.stringify(v)
-
-async function scopeHashOf(brief: Any): Promise<string | null> {
-  try {
-    const scoped = { ...brief, requirements: ((brief.requirements ?? []) as Any[]).map(({ state: _s, evidence_ids: _e, ...rest }) => rest) }
-    return await sha256Bytes(new TextEncoder().encode(canonical(scoped)))
-  } catch {
-    return null
-  }
-}
-
 const at = (root: string, path: string) => `${root}/${path}`
 
 // Build 3 (Cowork ADR-03): the BOB workspace. One folder per machine, opened as
@@ -117,15 +69,7 @@ const at = (root: string, path: string) => `${root}/${path}`
 // A session on it works on the CURRENT project, so every repo path resolves
 // under that subfolder: the gates, the preflight, /bob adopt and the pane all
 // follow /bob switch. A file that does not parse fails closed (Gate A refuses).
-const WORKSPACE_FILE = 'bob-workspace.json'
 
-type Place = {
-  session: string
-  root: string
-  workspace: Any | null
-  workspaceError: string | null
-  project: string
-}
 
 async function locate($: Engine): Promise<Place> {
   const session = String(await $.session.root()).replace(/\/+$/, '')
@@ -174,53 +118,25 @@ async function load($: Engine): Promise<Model> {
 }
 
 // The test kit's $ has no ui.invalidate; a live session does.
+// docs/status.html: the board as a branded page in the governed repo, so a
+// Stepper can open it with no session running. Never from fixtures.
+async function writePage($: Engine) {
+  try {
+    const m = await load($)
+    if (!m.ownLedger) return
+    const b = describe(m, await read($, preflightAtom), Date.now())
+    const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
+    await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
+  } catch {
+    // the page is a view; a failure to write it never blocks a session
+  }
+}
+
 const redraw = ($: Engine) => {
   try {
     $.ui.invalidate('ui.render')
   } catch {
     // the kit's $ has no invalidate; nothing to redraw there
-  }
-}
-
-const short = (hash: string | null) => (hash ? hash.slice(0, 12) : 'unknown')
-const activeIncrement = (m: Model): Any | undefined => (m.ledger?.increments ?? []).find((i: Any) => i.state === 'active')
-const evidenceFor = (m: Model, ids: string[]): Any[] =>
-  ((m.ledger?.evidence ?? []) as Any[]).filter(ev => ids.includes(ev.requirement_id))
-
-type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: string }
-
-// Gate A: deny unless an approval record has brief_hash == sha256(bob/brief.json)
-// and the active increment in scope_increment_ids (bob/schema.json, gates.A_approval).
-function approvalVerdict(m: Model): Verdict {
-  if (m.place.workspaceError) return { ok: false, reason: m.place.workspaceError, next: WORKSPACE_REPAIR }
-  if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
-  if (!m.schema) return { ok: false, reason: 'bob/schema.json is missing or does not parse in the plugin folder', next: 'Ash needs to reinstall BOB' }
-  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. A typed /bob command lands in an open file pane: Ash needs to close file panes before typing one' }
-  if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to run /bob adopt, or restore the files from git' }
-  const active = activeIncrement(m)
-  if (!active) {
-    const proposed = ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
-    return {
-      ok: false,
-      reason: 'no increment in bob/ledger.json has state active',
-      next: `Ash needs to type /bob approve ${proposed?.id ?? '<increment id>'} (the only writer of bob/approvals.json)`,
-    }
-  }
-  const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
-  const match = inScope.find(a => a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash))
-  if (match) return { ok: true, note: `${active.id} approved by ${match.id}` }
-  if (inScope.length) {
-    const ids = inScope.map(a => a.id).join(', ')
-    return {
-      ok: false,
-      reason: `bob/brief.json changed after approval ${ids}: its hash ${short(m.hash)} matches no approval of ${active.id}`,
-      next: `Ash needs to re-approve ${active.id} against the current brief by typing /bob approve ${active.id} (one new record at brief_hash ${m.hash ?? 'unknown'})`,
-    }
-  }
-  return {
-    ok: false,
-    reason: `no approval record in bob/approvals.json covers ${active.id} at brief hash ${short(m.hash)}`,
-    next: `Ash needs to type /bob approve ${active.id} (one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'})`,
   }
 }
 
@@ -326,7 +242,6 @@ function proposalRefusals(schema: Any, p: Any): string[] {
 const refusedText = (what: string, reasons: string[], next = `Claude: fix the proposal at ${PROPOSAL_PATH} and run /bob ${what} again`) =>
   [`BOB ${what} refused. Nothing was written.`, ...reasons.map(r => `- ${r}`), `Next action: ${next}.`].join('\n')
 
-const WORKSPACE_REPAIR = `Ash needs to rename ${WORKSPACE_FILE} in Finder (for example to bob-workspace.broken.json, never delete it), then type /bob switch <project> to register the project again`
 
 async function adopt($: Engine): Promise<string> {
   const errors: string[] = []
@@ -579,8 +494,6 @@ async function switchProject($: Engine, nameArg: string, originKind: string | un
 // becomes completed when the ledger already holds a finished event for it, else
 // failed with exit_reason interrupted. Increments and requirements are not
 // touched: what the interrupted work proved is for evidence and a person.
-const STALE_MS = 120_000
-
 async function reconcile($: Engine): Promise<string> {
   const m = await load($)
   if (!m.ownLedger || !m.ledger) return refusedText('reconcile', ['this repo has no bob/ledger.json of its own; fixtures/ records are synthetic and never reconciled'])
@@ -797,118 +710,6 @@ const parsePreflight = (exitCode: number, stdout: string, stderr: string, at: nu
   return { exitCode, lines, stops, at }
 }
 
-type Row = { id: string; text: string; state: string; known: boolean; evidence: string }
-type Board = {
-  project: string
-  workspace: string | null
-  source: string
-  increment: string
-  approval: string
-  task: string
-  blocker: string
-  next: string
-  stale: string | null
-  rows: Row[]
-  evidence: { id: string; kind: string; requirement: string; at: string }[]
-  preflight: Preflight | null
-  notes: string[]
-}
-
-function describe(m: Model, pf: Preflight | null, now: number): Board {
-  const states: string[] = m.schema?.requirement?.states ?? []
-  const reqs = ((m.brief?.requirements ?? []) as Any[])
-  const evidence = ((m.ledger?.evidence ?? []) as Any[])
-  const active = activeIncrement(m)
-  const runs = ((m.ledger?.runs ?? []) as Any[])
-  const latestRun = runs.slice().sort((a, b) => String(a.last_event_at ?? '').localeCompare(String(b.last_event_at ?? '')))[runs.length - 1]
-  const events = ((m.ledger?.events ?? []) as Any[])
-  const runEvents = latestRun ? events.filter(ev => ev.run_id === latestRun.id) : events
-  const started = runEvents.filter(ev => ev.type === 'started').slice(-1)[0]
-  const lastEventAt = events.map(ev => Date.parse(String(ev.at))).filter(n => !Number.isNaN(n)).sort((a, b) => a - b).slice(-1)[0]
-
-  const rows: Row[] = reqs.map(r => ({
-    id: String(r.id),
-    text: String(r.text ?? ''),
-    state: String(r.state ?? ''),
-    known: states.includes(r.state),
-    evidence: evidence.filter(ev => ev.requirement_id === r.id).map(ev => ev.id).join(' '),
-  }))
-
-  const verdict = m.governed ? approvalVerdict(m) : null
-  const blocked = rows.filter(r => r.state === 'blocked').map(r => r.id)
-  let blocker = blocked.length ? `${blocked.join(', ')} blocked` : 'none'
-  if (verdict && !verdict.ok) blocker = verdict.reason
-
-  const fresh = !m.governed && !m.ownLedger && !m.fixtures
-  let next = 'Ash needs to: approve an increment and set it active'
-  if (m.place.workspaceError) next = WORKSPACE_REPAIR
-  else if (m.place.workspace && !m.place.project) next = 'Ash needs to: type /bob new <name> to start a project (or /bob switch <name> for one already here)'
-  else if (fresh) next = `Ash needs to: design ${m.place.project} with the design-with-bob skill; Claude then writes the adopt proposal and Ash types /bob adopt`
-  if (active) {
-    const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
-    const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
-    const toAccept = inScope.find(r => r.state === 'verified')
-    const toVerify = inScope.find(r => ['implemented', 'reported'].includes(r.state))
-    if (verdict && !verdict.ok) next = verdict.next
-    else if (unproven) next = `Claude: capture evidence for ${unproven.id}`
-    else if (toVerify) next = `Claude: verify ${toVerify.id} against its check`
-    else if (toAccept) next = `Ash needs to: accept or return ${toAccept.id}`
-    else next = `Ash needs to: close ${active.id} and approve the next increment`
-  }
-
-  let stale: string | null = null
-  if (m.ledgerMtimeMs !== null && lastEventAt !== undefined && m.ledgerMtimeMs < lastEventAt) stale = 'stale: ledger file is older than its last event'
-  const staleRun = runs.find(r => ['running', 'verifying'].includes(r.state) && now - Date.parse(String(r.last_event_at)) > STALE_MS)
-  if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Type /bob reconcile to close it`
-
-  const notes: string[] = []
-  if (m.place.workspaceError) notes.push(m.place.workspaceError)
-  if (m.fixtures) notes.push('SYNTHETIC: not governed (no bob/brief.json); showing fixtures/. Gates idle.')
-  if (fresh && !(m.place.workspace && !m.place.project)) notes.push('Not designed yet: no bob/brief.json and no ledger, so no requirements are listed and the gates idle.')
-  if (!m.governed && m.ownLedger) notes.push('Not governed: no bob/brief.json, so no requirements are listed and the gates idle.')
-  if (m.parseErrors.length) notes.push(...m.parseErrors)
-  if (!m.schema) notes.push('bob/schema.json not found in the plugin folder')
-  notes.push('No percentage is shown. No state is set from prose.')
-
-  const projects = ((m.place.workspace?.projects ?? []) as Any[]).map(p => String(p.name))
-  return {
-    project: m.place.workspace && !m.place.project ? 'none yet' : `${m.place.project} · ${m.root}`,
-    workspace: m.place.workspace ? `${m.place.session} · ${projects.length ? projects.join(', ') : 'no projects yet'}` : null,
-    source: m.ownLedger ? m.ledgerPath : m.fixtures ? `${m.ledgerPath} (synthetic)` : 'no ledger yet',
-    increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : 'none active',
-    approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? `${active.approval_id ?? 'none'} (fixture, not checked)` : 'none',
-    task: started ? String(started.detail ?? '') : 'none recorded',
-    blocker,
-    next,
-    stale,
-    rows,
-    evidence: evidence.slice(-8).reverse().map(ev => ({ id: String(ev.id), kind: String(ev.kind), requirement: String(ev.requirement_id), at: String(ev.captured_at ?? '') })),
-    preflight: pf,
-    notes,
-  }
-}
-
-const statusText = (b: Board): string =>
-  [
-    `BOB · Now (${b.source})`,
-    `Project: ${b.project}`,
-    ...(b.workspace ? [`Workspace: ${b.workspace}`] : []),
-    `Increment: ${b.increment}`,
-    `Approval: ${b.approval}`,
-    `Current task: ${b.task}`,
-    `Blocker: ${b.blocker}`,
-    `Next action: ${b.next}`,
-    b.stale ? `Ledger: ${b.stale}` : 'Ledger: current',
-    b.preflight ? `Preflight: ${b.preflight.stops.length ? `STOP · ${b.preflight.stops.join(' · ')}` : 'clear'}` : 'Preflight: not run this session',
-    '',
-    'Board',
-    ...b.rows.map(r => `${r.id} ${r.text} [${r.known ? r.state : `unknown state ${r.state}`}]${r.evidence ? ` ${r.evidence}` : ''}`),
-    '',
-    'Evidence',
-    ...(b.evidence.length ? b.evidence.map(ev => `${ev.id} · ${ev.kind} · ${ev.requirement} · ${ev.at}`) : ['none']),
-    ...b.notes,
-  ].join('\n')
-
 const colour = (r: Row) =>
   !r.known ? 'error'
   : r.state === 'accepted' || r.state === 'verified' ? 'success'
@@ -917,12 +718,34 @@ const colour = (r: Row) =>
   : r.state === 'blocked' ? 'error'
   : 'inactive'
 
+// /bob <word>: the commands. Top level so the engine can follow $ into it.
+async function bobCommand($: Engine, e: Any): Promise<{ text: string }> {
+  const arg = (e.args ?? '').trim()
+  const [word, ...rest] = arg.split(/\s+/)
+  if (word === 'open') {
+    const placed = await $.ui.open({ id: PANE, title: TITLE })
+    return { text: placed.isPlaced ? 'BOB board pane opened.' : 'BOB board pane requested, but this surface did not seat it.' }
+  }
+  if (word === 'adopt') {
+    const text = await adopt($)
+    redraw($)
+    return { text }
+  }
+  if (word === 'reconcile') return { text: await reconcile($) }
+  if (word === 'new') return { text: await newProject($, rest.join(' '), (e as Any).origin?.kind) }
+  if (word === 'switch') return { text: await switchProject($, rest.join(' '), (e as Any).origin?.kind) }
+  if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
+  const m = await load($)
+  return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, new <name> (a project in the BOB workspace), switch <name>, adopt this project from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
 
     await runPreflight($)
     await resetRound($)
+    await writePage($)
 
     void $.ui.open({ id: PANE, title: TITLE })
 
@@ -935,24 +758,11 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'bob' }, async ($, e) => {
-    const arg = (e.args ?? '').trim()
-    const [word, ...rest] = arg.split(/\s+/)
-    if (word === 'open') {
-      const placed = await $.ui.open({ id: PANE, title: TITLE })
-      return { text: placed.isPlaced ? 'BOB board pane opened.' : 'BOB board pane requested, but this surface did not seat it.' }
-    }
-    if (word === 'adopt') {
-      const text = await adopt($)
-      redraw($)
-      return { text }
-    }
-    if (word === 'reconcile') return { text: await reconcile($) }
-    if (word === 'new') return { text: await newProject($, rest.join(' '), (e as Any).origin?.kind) }
-    if (word === 'switch') return { text: await switchProject($, rest.join(' '), (e as Any).origin?.kind) }
-    if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
-    const m = await load($)
-    return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
+    const result = await bobCommand($, e as Any)
+    await writePage($)
+    return result
   })
+
 
   // Gate A and the state-table guard on the file-writing tools.
   on('tool.call', { tool: /^(Edit|Write|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
@@ -998,6 +808,7 @@ export const register: Register = on => {
   // Gate B: a round that wrote files cannot end until the active increment's
   // requirement ids gained an evidence record (bob/schema.json, gates.B_evidence).
   on('classic.Stop', async ($, e, next) => {
+    await writePage($)
     const m = await load($)
     if (!m.governed || !m.ledger) return next(e)
     const active = activeIncrement(m)

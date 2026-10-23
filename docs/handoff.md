@@ -20,6 +20,11 @@ BOB is a Claude Code plugin that makes builds designed-first, gated and visible 
 - The spike's own test is archived (`plugin-spike/hooks/pane.test.tsx.archived`): `claude plugin test .` collects every test under the repo and the root plugin answers the same pane id, so the two cannot share one test tree. Its last green run is in docs/evidence/build-1.
 - MANIFEST.json describes the start pack as shipped; after Build 1 `check_manifest.py` reports drift by design. Do not regenerate it to make the check green; it is the pack's record, not the repo's.
 
+## Decisions taken in the Build 3 session (23 October 2026, the board page)
+- The branded interface is `docs/status.html` in the governed repo, written by the plugin from the ledger (session start, every /bob command, end of round), never by hand and never from fixtures. It is the wireframe Ash saw on 22 October made real; the pane stays plain engine text. `hooks/board.ts` is the one home for board logic; `scripts/render-status.ts` renders the same page outside a session (node 22.6+). The page is gitignored in this repo; an adopted repo decides for itself (adopt does not add it to .gitignore yet).
+- Engine rule learned: a function that takes `$` must be declared at the top level of the module (the scan refuses a nested one); hence `bobCommand` sits beside `register`.
+- Test-double rule: page writes are filed in `w.pages`, record writes in `w.writes`, so the exact write-list assertions stay honest.
+
 ## Decisions taken in the Build 3 session (23 October 2026, the design room)
 - The Cowork design room is a skill, `design-with-bob`, not an app: six stages (Capture, Understand, Design, Data, Visible, Challenge and approve) writing one project folder. Its only handoff to the engine is `docs/evidence/adopt/adopt-proposal.json`, the file `/bob adopt` already validates, so greenfield and adopted projects share one path and the design room never writes a governed file or an approval.
 - A non-text source counts as read only when `sources/<name>.extracted.txt` (the text BOB read, naming what was not read) sits beside it. That is how "no false read status" (R02) is checkable from files.
