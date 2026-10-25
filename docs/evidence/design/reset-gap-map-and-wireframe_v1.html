@@ -1,0 +1,186 @@
+<title>BOB Reset</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column for the gap map, then a three-up row of pane wireframes that stacks on a phone. Unbranded on purpose (BOB brief: wireframe approval before any branded mockup). */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --fg: #18202b; --muted: #5b6676; --line: #d9dee5;
+  --accent: #1f5f8b; --accent-soft: #e3eef6;
+  --ok: #2f7d4f; --ok-soft: #e2f1e8; --part: #9a6a12; --part-soft: #f6ecd8;
+  --miss: #a3412e; --miss-soft: #f6e2dd; --chat: #eef1f4;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12171e; --surface: #1a212b; --fg: #e6eaf0; --muted: #9aa5b4; --line: #2c3542;
+  --accent: #7db4dc; --accent-soft: #1d3245;
+  --ok: #7cc79a; --ok-soft: #1c3226; --part: #e0b45e; --part-soft: #3a2e17;
+  --miss: #ec8d78; --miss-soft: #3d221d; --chat: #222a35; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12171e; --surface: #1a212b; --fg: #e6eaf0; --muted: #9aa5b4; --line: #2c3542;
+  --accent: #7db4dc; --accent-soft: #1d3245;
+  --ok: #7cc79a; --ok-soft: #1c3226; --part: #e0b45e; --part-soft: #3a2e17;
+  --miss: #ec8d78; --miss-soft: #3d221d; --chat: #222a35; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--sans); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; font-weight: 600; margin: 10px 0 12px; text-wrap: balance; max-width: 22ch; }
+h2 { font-size: 21px; font-weight: 600; margin: 48px 0 6px; text-wrap: balance; }
+p { margin: 0 0 12px; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 17px; }
+.tablewrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+th { font: 500 12px/1.3 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.src { font: 12px/1.5 var(--mono); color: var(--muted); white-space: nowrap; }
+.chip { display: inline-block; font: 500 12px/1 var(--mono); padding: 5px 8px; border-radius: 4px; white-space: nowrap; }
+.c-ok { background: var(--ok-soft); color: var(--ok); }
+.c-part { background: var(--part-soft); color: var(--part); }
+.c-miss { background: var(--miss-soft); color: var(--miss); }
+.why { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 16px; }
+.why div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.why b { display: block; margin-bottom: 4px; }
+.screens { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 16px; }
+.screen { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.screen h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.screen .note { font-size: 13px; color: var(--muted); margin: 0; }
+.frame { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); display: grid; grid-template-columns: 1fr 1.25fr; min-height: 380px; }
+.chat { background: var(--chat); padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; min-width: 0; }
+.bubble { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.bubble.me { align-self: flex-end; background: var(--accent-soft); border-color: transparent; }
+.who { font: 500 11px/1 var(--mono); color: var(--muted); margin-bottom: 4px; }
+.pane { padding: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; min-width: 0; border-left: 1px solid var(--line); }
+.pane .ph { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pane .proj { font-weight: 600; font-size: 14px; word-break: break-word; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn { font: 500 12px/1 var(--sans); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stages li { display: flex; gap: 8px; align-items: center; }
+.dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); flex: none; }
+.dot.done { background: var(--ok); border-color: var(--ok); }
+.dot.now { background: var(--accent); border-color: var(--accent); }
+.box { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.box.ask { border-color: var(--accent); background: var(--accent-soft); }
+.reqs { display: grid; gap: 4px; }
+.reqs div { display: flex; justify-content: space-between; gap: 6px; }
+.tests { margin-top: 16px; display: grid; gap: 10px; }
+.tests div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.tests div span:first-child { font: 500 12px/1.6 var(--mono); color: var(--muted); }
+.next { margin-top: 40px; padding: 18px; border-radius: 8px; background: var(--accent-soft); }
+.next p { margin: 0; }
+@media (max-width: 420px) { .frame { grid-template-columns: 1fr; } .pane { border-left: 0; border-top: 1px solid var(--line); } .tests div { grid-template-columns: 1fr; gap: 2px; } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">BOB reset · 26 October 2026 · gap map and wireframe v1</div>
+  <h1>BOB built the guardrails. It never built the workspace.</h1>
+  <p class="lede">The original brief promised Mags a friendly visual workspace where Claude does the work. Three builds delivered the rules underneath: no build without approval, no finish without proof. The part a person sees and touches was never designed, so every action is still a typed command.</p>
+
+  <h2>Gap map</h2>
+  <p>Each line is a promise from the original brief or the build plan, set against plugin 0.4.0 as installed in ~/BOB. Claude read the 0.4.0 code and docs on 26 October 2026; items marked "not seen live" come from the docs, not a live session.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>The brief promised</th><th>What exists in 0.4.0</th><th>Status</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>A project home: "resume the project or start a new one"</td><td>Typed <code>/bob new &lt;name&gt;</code> and <code>/bob switch &lt;name&gt;</code>, with naming rules. No list of projects to click.</td><td><span class="chip c-miss">Missing</span></td><td class="src">Brief §6</td></tr>
+        <tr><td>Mags never types "continue"; one recommended next action with an owner</td><td>Next actions read "Ash needs to type /bob ...". The person carries the commands.</td><td><span class="chip c-miss">Contradicts brief</span></td><td class="src">Brief §6</td></tr>
+        <tr><td>Must not look like a terminal</td><td>Six slash commands with arguments are the only way to act.</td><td><span class="chip c-miss">Contradicts brief</span></td><td class="src">Plan Part 1</td></tr>
+        <tr><td>Approve a named version by reviewing it</td><td>Typed <code>/bob approve &lt;increment id&gt;</code>. The rule behind it works; the experience is a typed ID.</td><td><span class="chip c-part">Part built</span></td><td class="src">Brief §5F, R08</td></tr>
+        <tr><td>Build room: goal, task, blocker, evidence, and pause, resume or answer a blocker</td><td>The pane shows Now, Board and Evidence. It has no buttons: Claude found none in the pane code.</td><td><span class="chip c-part">Part built</span></td><td class="src">Brief §5G, §6</td></tr>
+        <tr><td>Briefing workspace: conversation beside a live brief, drop material in</td><td>The design-with-bob skill runs the conversation in chat and writes brief files. No live brief view beside the chat. Not seen live.</td><td><span class="chip c-part">Part built</span></td><td class="src">Brief §5A to C</td></tr>
+        <tr><td>Product and data studios: journey, screen map, data trace</td><td>design-with-bob writes review pages as files in the project folder. They are not part of the workspace. Not seen live.</td><td><span class="chip c-part">Part built</span></td><td class="src">Brief §5D to E, R06, R07</td></tr>
+        <tr><td>No unapproved build, no unproven finish</td><td>Gate A, Gate B and the state guard, with 38 plugin tests passing. Not yet seen refusing in a live governed project.</td><td><span class="chip c-ok">Built</span></td><td class="src">R10, R13</td></tr>
+        <tr><td>A calm, branded look after a wireframe and a mockup approval</td><td>Engine default components, unbranded. The wireframe and mockup gate never ran.</td><td><span class="chip c-miss">Missing</span></td><td class="src">Brief §6, Plan Part 1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Why it drifted</h2>
+  <div class="why">
+    <div><b>Every build measured rules, not people.</b>Each kickoff's done list checked gates and tests. None checked whether Mags could start and steer a project without typing commands, though the plan named that as load-bearing assumption 3.</div>
+    <div><b>The design gate never fired.</b>The plan deferred the look to "after a wireframe approval and a mockup approval". Neither was ever drawn, so the default pane became the product.</div>
+    <div><b>Choosing a plugin traded away the visual app.</b>That was the right call for reach and safety, but nobody then designed what the workspace looks like inside a pane beside the chat.</div>
+  </div>
+
+  <h2>Wireframe v1: BOB as a workspace beside the chat</h2>
+  <p>Three moments, unbranded. In each one the person talks in plain words or clicks a button, and Claude does the rest. The project name in the example is made up.</p>
+  <div class="screens">
+    <section class="screen">
+      <h3>1. Starting a project</h3>
+      <div class="frame">
+        <div class="chat">
+          <div class="bubble me"><div class="who">Mags</div>I want a tool that checks our proposals against the rate card before they go out.</div>
+          <div class="bubble"><div class="who">Claude</div>Good idea. I've set it up as a new BOB project. Before anything is built, we'll design it together. First question is in the pane.</div>
+        </div>
+        <div class="pane">
+          <div class="ph">BOB</div>
+          <div class="proj">Proposal price check</div>
+          <div class="box">Claude named it from your idea. Folder and history set up. Nothing built.</div>
+          <div class="btns"><span class="btn primary">Start designing</span><span class="btn">Rename</span></div>
+          <div class="ph" style="margin-top:6px">Other projects</div>
+          <div class="box">Value Gap Audit · building</div>
+          <div class="box">AquaAgent · paused</div>
+        </div>
+      </div>
+      <p class="note">No command, no naming rules. Saying the idea is enough; the pane also lists existing projects to reopen with a click.</p>
+    </section>
+
+    <section class="screen">
+      <h3>2. Designing it</h3>
+      <div class="frame">
+        <div class="chat">
+          <div class="bubble"><div class="who">Claude</div>From the two proposals you dropped in, I think the user is the account lead, not finance. Is that right?</div>
+          <div class="bubble me"><div class="who">Mags</div>Yes, account leads. Finance only sees the final.</div>
+        </div>
+        <div class="pane">
+          <div class="ph">Proposal price check</div>
+          <ul class="stages">
+            <li><span class="dot done"></span>Capture</li>
+            <li><span class="dot done"></span>Understand</li>
+            <li><span class="dot now"></span><b>Design the product</b></li>
+            <li><span class="dot"></span>Data and sources</li>
+            <li><span class="dot"></span>See it</li>
+            <li><span class="dot"></span>Challenge and approve</li>
+          </ul>
+          <div class="box"><b>Brief so far</b><br>User: account leads. Job: catch underpriced lines before send. Open: where the rate card lives.</div>
+          <div class="btns"><span class="btn">See journey</span><span class="btn">See screens</span></div>
+        </div>
+      </div>
+      <p class="note">One question at a time in the chat; the brief fills in live beside it. Review pages open from buttons, not file paths.</p>
+    </section>
+
+    <section class="screen">
+      <h3>3. Building it</h3>
+      <div class="frame">
+        <div class="chat">
+          <div class="bubble"><div class="who">Claude</div>The design is ready for your approval. Round 1 covers three requirements. Nothing gets built until you approve.</div>
+        </div>
+        <div class="pane">
+          <div class="ph">Proposal price check · Round 1</div>
+          <div class="box ask"><b>Waiting on you</b><br>Approve round 1: read the rate card, flag underpriced lines, show the fix.</div>
+          <div class="btns"><span class="btn primary">Approve round 1</span><span class="btn">Send back with a note</span></div>
+          <div class="reqs">
+            <div><span>Read the rate card</span><span class="chip c-part">designed</span></div>
+            <div><span>Flag underpriced lines</span><span class="chip c-part">designed</span></div>
+            <div><span>Show the fix</span><span class="chip c-part">designed</span></div>
+          </div>
+          <div class="btns"><span class="btn">Pause</span><span class="btn">See evidence</span></div>
+        </div>
+      </div>
+      <p class="note">Approval is a click by a person, which keeps Gate A's rule that only a person approves. Progress shows as named states with evidence, never a percentage.</p>
+    </section>
+  </div>
+
+  <h2>What Claude tests before any build</h2>
+  <p>This wireframe assumes three things the engine has not been tested on. Claude proves each one in a throwaway folder first. If one fails, the design changes before any code is written.</p>
+  <div class="tests">
+    <div><span>Test 1</span><span>A button in the pane can start a BOB action, like starting a project or approving a round. The engine has a Button component; whether a click can run BOB's own actions has not been tested.</span></div>
+    <div><span>Test 2</span><span>Saying the idea in plain words starts the project, with Claude choosing the name. Today only a typed command can do this.</span></div>
+    <div><span>Test 3</span><span>A click in the pane counts as a person for Gate A, so approvals stay out of Claude's reach.</span></div>
+  </div>
+
+  <div class="next"><p><b>Next step.</b> Ash approves this wireframe or marks what to change. Claude then runs the three tests and writes the next build kickoff around this experience, not around more rules.</p></div>
+</div>
