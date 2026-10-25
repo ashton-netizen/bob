@@ -1,0 +1,120 @@
+<title>BOB Build Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column, headline first, then the path as a numbered sequence, then the record. Tokens match BOB's board page (hooks/board.ts). */
+:root{
+  --bg:#0F0F0F;--surface:#1A1A1A;--surface-2:#242424;
+  --fg1:#FFFFFF;--fg2:rgba(255,255,255,.68);--fg3:rgba(255,255,255,.44);
+  --hair:rgba(255,255,255,.12);--accent:#F75821;
+  --grad:linear-gradient(90deg,#F75821,#FA381E,#FF1900);
+  --ok:#6DCC6F;--warn:#FF9900;--info:#01DDE8;--bad:#F40219;
+  --f-head:"Bebas Neue","Arial Narrow",Arial,sans-serif;
+  --f-body:"Instrument Sans",Arial,Helvetica,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#FFFFFF;--surface:#F3F3F2;--surface-2:#E9E9E7;
+  --fg1:#0F0F0F;--fg2:rgba(15,15,15,.70);--fg3:rgba(15,15,15,.48);
+  --hair:rgba(15,15,15,.12);--ok:#2E8B30;--warn:#B86E00;--info:#00808A;--bad:#C4001A;color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#FFFFFF;--surface:#F3F3F2;--surface-2:#E9E9E7;
+  --fg1:#0F0F0F;--fg2:rgba(15,15,15,.70);--fg3:rgba(15,15,15,.48);
+  --hair:rgba(15,15,15,.12);--ok:#2E8B30;--warn:#B86E00;--info:#00808A;--bad:#C4001A;color-scheme:light}
+body{background:var(--bg);color:var(--fg1);font:16px/1.55 var(--f-body)}
+.wrap{max-width:760px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:40px}
+.bar{height:4px;background:var(--grad);border-radius:2px;width:72px}
+h1,h2{font-family:var(--f-head);font-weight:400;letter-spacing:.02em;line-height:1;margin:0;text-wrap:balance}
+h1{font-size:clamp(44px,9vw,72px)}
+h2{font-size:30px;margin-bottom:14px}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);margin:0 0 10px}
+.lede{color:var(--fg2);max-width:62ch;margin:14px 0 0}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.three div{background:var(--surface);border-radius:10px;padding:16px;min-width:0}
+.three b{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg3);font-weight:600;margin-bottom:6px}
+@media (max-width:620px){.three{grid-template-columns:1fr}}
+ol.path{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:s}
+ol.path li{counter-increment:s;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:14px 0;border-top:1px solid var(--hair)}
+ol.path li::before{content:counter(s);font-family:var(--f-head);font-size:32px;line-height:1;color:var(--fg3)}
+ol.path li.now::before{color:var(--accent)}
+.who{font-weight:700}
+.who.ash{color:var(--accent)}
+.note{color:var(--fg2);font-size:14px;display:block;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:9px 0;border-top:1px solid var(--hair);vertical-align:top}
+td:first-child{width:62%;padding-right:12px}
+.chip{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.04em;padding:2px 9px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.done{color:var(--ok)}.half{color:var(--warn)}.unseen{color:var(--info)}.todo{color:var(--fg3)}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:6px;color:var(--fg2)}
+ul.plain b{color:var(--fg1)}
+code{font-size:.92em;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.foot{font-size:13px;color:var(--fg3)}
+a{color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="bar"></div>
+    <p class="eyebrow" style="margin-top:18px">BOB · consolidated 26 October 2026</p>
+    <h1>One window, one path</h1>
+    <p class="lede">The code is in good shape. Every BOB pull request is merged and checks are green. Almost all of the mess was leftovers: 21 merged branches and 9 finished sessions nobody had closed. Those are cleared. Two features are built but have never been seen working, and the path below gets them seen, one at a time.</p>
+  </header>
+
+  <section class="three" aria-label="Three-line report">
+    <div><b>Stage</b>Build 3: four of eight items done, two built but not yet seen live.</div>
+    <div><b>Live</b>Plugin 0.5.0 on main, tagged. BOB governs its own repo. No BOB PR open except today's tidy-up (PR 25).</div>
+    <div><b>Next</b><span class="who ash">Ash needs to</span> type <code>/bob new &lt;name&gt;</code> in the <code>~/BOB</code> session.</div>
+  </section>
+
+  <section>
+    <h2>The path to the Mags pilot</h2>
+    <ol class="path">
+      <li class="now"><div><span class="who ash">Ash needs to:</span> type <code>/bob new &lt;name&gt;</code> in the session "BOB workspace: first live /bob new". <span class="note">This is the first live look at <code>/bob new</code>. That session reads back what the command wrote.</span></div></li>
+      <li><div><span class="who">Claude:</span> update <code>~/BOB</code> to 0.5.0, read the version back, then close the roadmap session. <span class="note">That gets the open BOB windows down to this one.</span></div></li>
+      <li><div><span class="who ash">Ash needs to:</span> answer two open questions: how many days for the BOB-on-BOB fixes (recommended 5), and whether the board page counts as mockup approval (recommended yes).</div></li>
+      <li><div><span class="who">Claude:</span> close INC-00 and propose INC-01 (three-line reports, the wrong-window answer). <span class="who ash">Ash needs to</span> type <code>/bob approve INC-01</code>. <span class="note">First, Claude proves Gate B fires. Another plugin's Stop hook has been skipping it.</span></div></li>
+      <li><div><span class="who ash">Ash needs to:</span> send one screenshot of what "Choose environment" opens. <span class="note">Claude writes the saved-environment step only from that screen.</span></div></li>
+      <li><div><span class="who">Claude:</span> run the design room live once in Cowork and record what you saw and disliked.</div></li>
+      <li><div><span class="who">Claude:</span> write the Mags pilot kickoff, opening with the saved-environment setup.</div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Build 3 scoreboard</h2>
+    <table>
+      <tr><td>Builds 1 and 2: pane, gates, preflight, <code>/bob adopt</code>, <code>/bob approve</code>, AquaAgent governed</td><td><span class="chip done">done</span></td></tr>
+      <tr><td>1 · Adopt VGA and tAItans</td><td><span class="chip half">VGA done, tAItans not started</span></td></tr>
+      <tr><td>2 · Design room skill (design-with-bob)</td><td><span class="chip unseen">built, not seen live</span></td></tr>
+      <tr><td>3 · <code>/bob new</code> and the BOB workspace</td><td><span class="chip unseen">built, not seen live</span></td></tr>
+      <tr><td>4 · Stack preflight</td><td><span class="chip done">done</span></td></tr>
+      <tr><td>5 · Rollback rehearsal and reconcile</td><td><span class="chip done">done</span></td></tr>
+      <tr><td>6 · Spike: scheduled cloud session</td><td><span class="chip todo">not started</span></td></tr>
+      <tr><td>7 · Spike: reviewer agent</td><td><span class="chip todo">not started</span></td></tr>
+      <tr><td>8 · Mags pilot</td><td><span class="chip todo">not started</span></td></tr>
+      <tr><td>Extra: the board page (plugin 0.5.0)</td><td><span class="chip done">done, tagged today</span></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>What Claude cleared today</h2>
+    <ul class="plain">
+      <li><b>PR 24 merged</b> (BOB under BOB) at 42f3f08 with all five checks green.</li>
+      <li><b>Tag <code>bob--v0.5.0</code></b> pushed. The last session said it would do this but never did.</li>
+      <li><b>21 merged branches deleted.</b> Each one pointed at exactly what its PR merged, and any of them can be restored from its PR. <code>gate-red-tests</code> is kept as evidence of the first red run.</li>
+      <li><b>9 finished BOB sessions archived.</b> Three stay open: this one, the <code>~/BOB</code> test, and its parent until that test reports back.</li>
+      <li><b>One next-steps list.</b> The handoff now holds a single path, in PR 25, in place of four overlapping lists.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Parked, off the path</h2>
+    <ul class="plain">
+      <li>tAItans adopt. Its folder is the publish folder, so it switches to main before any deploy.</li>
+      <li>AquaAgent INC-02 (R-AQ-14, R-AQ-15). AquaAgent PRs 139, 142 and 144 are product work, not BOB.</li>
+      <li>Two spikes: a scheduled cloud session and the reviewer agent.</li>
+    </ul>
+  </section>
+
+  <p class="foot">Source of truth: <code>docs/handoff.md</code> (what is next) and <code>docs/project-status.md</code> (the log) in ashton-netizen/bob. This page is a snapshot of those two files, not a third home.</p>
+</div>
