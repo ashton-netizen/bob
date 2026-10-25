@@ -1,0 +1,6 @@
+# personal-data check, bounded phone pattern, 2026-10-23T02:44Z
+## repo hits (expect 0):
+       0
+## planted folder (expect x.json and z.json, never y.json):
+bob/x.json:1:{"note": "call 0412 345 678 or +61 2 9999 8888"}
+bob/z.json:1:mail someone@example.invalid
