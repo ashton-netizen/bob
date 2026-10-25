@@ -58,22 +58,22 @@ a{color:var(--accent)}
     <div class="bar"></div>
     <p class="eyebrow" style="margin-top:18px">BOB · consolidated 26 October 2026</p>
     <h1>One window, one path</h1>
-    <p class="lede">The code is in good shape. Every BOB pull request is merged and checks are green. Almost all of the mess was leftovers: 21 merged branches and 9 finished sessions nobody had closed. Those are cleared. Two features are built but have never been seen working, and the path below gets them seen, one at a time.</p>
+    <p class="lede">The repo is tidy now: every BOB pull request is merged, the checks are green, 21 leftover branches and 9 finished sessions are cleared. That mess wasn't why it felt off track. Builds 1 to 3 built the safety layer (gates, ledger, checks). The friendly workspace from the original brief, the part Mags actually uses, was never designed. Today's first live look ran into exactly that gap: it asked you to type a command with rules. So the path now starts with design.</p>
   </header>
 
   <section class="three" aria-label="Three-line report">
-    <div><b>Stage</b>Build 3: four of eight items done, two built but not yet seen live.</div>
-    <div><b>Live</b>Plugin 0.5.0 on main, tagged. BOB governs its own repo. No BOB PR open except today's tidy-up (PR 25).</div>
-    <div><b>Next</b><span class="who ash">Ash needs to</span> type <code>/bob new &lt;name&gt;</code> in the <code>~/BOB</code> session.</div>
+    <div><b>Stage</b>Safety layer built (Builds 1 to 3). Experience layer not yet designed.</div>
+    <div><b>Live</b>Plugin 0.5.0 on main, tagged. BOB governs its own repo. No open BOB pull requests.</div>
+    <div><b>Next</b><span class="who">Claude</span> finishes the gap map: the original brief against BOB today, screen by screen.</div>
   </section>
 
   <section>
     <h2>The path to the Mags pilot</h2>
     <ol class="path">
-      <li class="now"><div><span class="who ash">Ash needs to:</span> type <code>/bob new &lt;name&gt;</code> in the session "BOB workspace: first live /bob new". <span class="note">This is the first live look at <code>/bob new</code>. That session reads back what the command wrote.</span></div></li>
-      <li><div><span class="who">Claude:</span> update <code>~/BOB</code> to 0.5.0, read the version back, then close the roadmap session. <span class="note">That gets the open BOB windows down to this one.</span></div></li>
-      <li><div><span class="who ash">Ash needs to:</span> answer two open questions: how many days for the BOB-on-BOB fixes (recommended 5), and whether the board page counts as mockup approval (recommended yes).</div></li>
-      <li><div><span class="who">Claude:</span> close INC-00 and propose INC-01 (three-line reports, the wrong-window answer). <span class="who ash">Ash needs to</span> type <code>/bob approve INC-01</code>. <span class="note">First, Claude proves Gate B fires. Another plugin's Stop hook has been skipping it.</span></div></li>
+      <li class="now"><div><span class="who">Claude:</span> finish the gap map, the original brief set against what BOB does today. <span class="note">Under way in the <code>~/BOB</code> session. You chose design first.</span></div></li>
+      <li><div><span class="who">Claude:</span> design the workspace from the gap map: a Project home, and a project started from plain words or a pane button, with no typed commands. <span class="who ash">Ash needs to</span> look at one review page and say yes, or say what's wrong.</div></li>
+      <li><div><span class="who">Claude:</span> build the first increment of that design. <span class="note">First, Claude proves Gate B fires. Another plugin's Stop hook has been skipping it.</span></div></li>
+      <li><div><span class="who">Claude:</span> run the live check in <code>~/BOB</code>: a project started from plain words shows up in the pane, with no folder picking and nothing typed.</div></li>
       <li><div><span class="who ash">Ash needs to:</span> send one screenshot of what "Choose environment" opens. <span class="note">Claude writes the saved-environment step only from that screen.</span></div></li>
       <li><div><span class="who">Claude:</span> run the design room live once in Cowork and record what you saw and disliked.</div></li>
       <li><div><span class="who">Claude:</span> write the Mags pilot kickoff, opening with the saved-environment setup.</div></li>
@@ -86,7 +86,8 @@ a{color:var(--accent)}
       <tr><td>Builds 1 and 2: pane, gates, preflight, <code>/bob adopt</code>, <code>/bob approve</code>, AquaAgent governed</td><td><span class="chip done">done</span></td></tr>
       <tr><td>1 · Adopt VGA and tAItans</td><td><span class="chip half">VGA done, tAItans not started</span></td></tr>
       <tr><td>2 · Design room skill (design-with-bob)</td><td><span class="chip unseen">built, not seen live</span></td></tr>
-      <tr><td>3 · <code>/bob new</code> and the BOB workspace</td><td><span class="chip unseen">built, not seen live</span></td></tr>
+      <tr><td>3 · <code>/bob new</code> and the BOB workspace</td><td><span class="chip half">built as a typed command; redo it as plain words</span></td></tr>
+      <tr><td>Experience layer: Project home, friendly workspace (brief sections 1 and 6)</td><td><span class="chip todo">never designed: next</span></td></tr>
       <tr><td>4 · Stack preflight</td><td><span class="chip done">done</span></td></tr>
       <tr><td>5 · Rollback rehearsal and reconcile</td><td><span class="chip done">done</span></td></tr>
       <tr><td>6 · Spike: scheduled cloud session</td><td><span class="chip todo">not started</span></td></tr>
@@ -102,8 +103,8 @@ a{color:var(--accent)}
       <li><b>PR 24 merged</b> (BOB under BOB) at 42f3f08 with all five checks green.</li>
       <li><b>Tag <code>bob--v0.5.0</code></b> pushed. The last session said it would do this but never did.</li>
       <li><b>21 merged branches deleted.</b> Each one pointed at exactly what its PR merged, and any of them can be restored from its PR. <code>gate-red-tests</code> is kept as evidence of the first red run.</li>
-      <li><b>9 finished BOB sessions archived.</b> Three stay open: this one, the <code>~/BOB</code> test, and its parent until that test reports back.</li>
-      <li><b>One next-steps list.</b> The handoff now holds a single path, in PR 25, in place of four overlapping lists.</li>
+      <li><b>9 finished BOB sessions archived.</b> Three are still open: this one, the <code>~/BOB</code> session running the gap map, and the session that started it.</li>
+      <li><b>One next-steps list.</b> The handoff now holds a single path in place of four overlapping lists.</li>
     </ul>
   </section>
 
