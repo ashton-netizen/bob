@@ -124,6 +124,9 @@ type World = {
   personDeny?: string
   // Every $.tool.register the module made, in order.
   tools?: { name: string; isDeferred?: unknown }[]
+  // Every $.prompt.submit and $.turn.abort the module made, in order.
+  prompts?: string[]
+  aborts?: string[]
 }
 
 // The repo root the double serves, answered to $.session.root(). Every repo
@@ -239,6 +242,16 @@ function world(on: any, w: World) {
   // press test proves the wiring only. The live session is the proof (R-bob-09).
   on('ui.view', () => ({ value: w.personDeny ? { deny: w.personDeny } : {} }))
   on('turn.start', (_: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  w.prompts = w.prompts ?? []
+  w.aborts = w.aborts ?? []
+  on('prompt.submit', (_: unknown, e: { text: string }) => {
+    w.prompts!.push(e.text)
+    return { text: e.text }
+  })
+  on('turn.abort', (_: unknown, e: { turnId: string }) => {
+    w.aborts!.push(e.turnId)
+    return { value: {} }
+  })
   on('ui.toast', () => ({ value: undefined }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
@@ -1069,15 +1082,18 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`R-bob-09: the same press writes nothing when the engine says it was not a person, and the pane says so (${surface})`, async ($, on) => {
+  // Rewritten 26 October 2026: the first build judged a press by $.ui.view, and
+  // the desktop app answered "no main view here" to Ash's real click. A press is
+  // now judged by the surface that raised it; the pane says who approved.
+  test(`R-bob-09: a press says in the pane who approved, and the view check no longer decides (${surface})`, async ($, on) => {
     const w = await adoptWorld(on)
     w.personDeny = 'not person-initiated'
     await $.session.start({ cwd: '/', surface, isInteractive: true })
     await adopt($)
     const ui = await $.ui.mount({ ...PANE, surface })
     await ui.press({ key: 'approve-INC-00' })
-    expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(0)
-    expect((await ui.find({ type: 'Text', text: /not person-initiated/ }))?.text).toContain('refused')
+    expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(1)
+    expect((await ui.find({ type: 'Text', text: /written to bob\/approvals\.json by/ }))?.text).toContain('Test Approver')
     await ui.unmount()
   })
 }
@@ -1130,4 +1146,122 @@ test('R-bob-10: a round that wrote nothing leaves the next round free', async ($
   await $.turn.start({ text: 'round 1', turnId: 't1' })
   await $.turn.start({ text: 'round 2', turnId: 't2' })
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+})
+
+// ---------------------------------------------------------------------------
+// Build 4, INC-03: the workspace pane. R-bob-11 Project home, R-bob-12 approve
+// or send back by button with Pause and See evidence, R-bob-15 one approval
+// when the active increment is fully verified. Live finding of 26 October
+// 2026: on the desktop app the engine answered $.ui.view with "no main view
+// here" to Ash's real click, so a press is judged by the surface it came from.
+// ---------------------------------------------------------------------------
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`R-bob-12: one Approve button per waiting increment; a press approves that one, even where the view check answers "no main view here" (${surface})`, async ($, on) => {
+    const w = await adoptWorld(on)
+    w.personDeny = 'no main view here'
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await adopt($)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /Waiting on you/ }))?.text).toContain('Waiting on you')
+    expect(await ui.find({ key: 'approve-INC-00' })).toBeDefined()
+    expect(await ui.find({ key: 'approve-INC-01' })).toBeDefined()
+    await ui.press({ key: 'approve-INC-01' })
+    const approvals = JSON.parse(w.files!['bob/approvals.json']).approvals
+    expect(approvals.map((a: any) => a.scope_increment_ids)).toEqual([['INC-01']])
+    expect(approvals[0].source).toBe('human')
+    await ui.unmount()
+  })
+}
+
+test('R-bob-12: Send back writes the note to the ledger as a human event and leaves the increment unapproved', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'sendback-INC-01', text: 'add a cost cap first' })
+  const ledger = JSON.parse(w.files!['bob/ledger.json'])
+  const ev = ledger.events.find((x: any) => x.type === 'sent_back')
+  expect(ev?.origin).toBe('human')
+  expect(String(ev?.detail)).toContain('INC-01')
+  expect(String(ev?.detail)).toContain('add a cost cap first')
+  expect(ledger.increments.find((i: any) => i.id === 'INC-01').state).toBe('proposed')
+  expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(0)
+  await ui.unmount()
+})
+
+test('R-bob-12: while a round runs the pane offers Pause (it stops the running turn) and See evidence (the board page)', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'build', turnId: 't9' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'pause' })
+  expect(w.aborts).toEqual(['t9'])
+  // A file:// link is drawn as plain text on the desktop app, so See evidence asks Claude to show it.
+  await ui.press({ key: 'see-evidence' })
+  expect(w.prompts!.length).toBe(1)
+  expect(w.prompts![0]).toContain('INC-T-2')
+  expect(w.prompts![0]).toContain('evidence')
+  await ui.unmount()
+})
+
+test('R-bob-11: Project home lists the other projects as buttons that switch in one click, and an idea box hands the idea to Claude', async ($, on) => {
+  const w = await workspaceWorld(on, {
+    'bob-workspace.json': wsFile(['demo', 'second'], 'demo'),
+    'demo/docs/project-status.md': '# demo\n',
+    'second/docs/project-status.md': '# second\n',
+  })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: 'project-demo' })).toBe(undefined)
+  await ui.press({ key: 'project-second' })
+  expect(wsOf(w).current).toBe('second')
+  await ui.input({ key: 'start-idea', text: 'a tool that checks proposals against the rate card' })
+  expect(w.prompts!.length).toBe(1)
+  expect(w.prompts![0]).toContain('a tool that checks proposals against the rate card')
+  expect(w.prompts![0]).toContain('start_project')
+  await ui.unmount()
+})
+
+const verifiedLedger = {
+  ...LEDGER,
+  increments: [
+    { id: 'INC-T-1', title: 'register', requirement_ids: ['R-T-01', 'R-T-02'], state: 'active', approval_id: 'AP-T-1', ...base('ai') },
+    { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-04'], state: 'proposed', approval_id: null, ...base('ai') },
+  ],
+}
+
+test('R-bob-15: approving the next increment closes an active one whose requirements are all verified or accepted, in one approval', async ($, on) => {
+  const w = await approvedWorld(on, {
+    ledger: verifiedLedger,
+    approvals: [{ id: 'AP-T-1', brief_hash: await sha256(JSON.stringify(BRIEF)), scope_increment_ids: ['INC-T-1'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }],
+    files: { 'bob/ledger.json': JSON.stringify(verifiedLedger) },
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await approve($, 'INC-T-3')
+  expect(out).toContain('INC-T-1')
+  const ledger = JSON.parse(w.files!['bob/ledger.json'])
+  expect(ledger.increments.find((i: any) => i.id === 'INC-T-1').state).toBe('done')
+  expect(ledger.increments.find((i: any) => i.id === 'INC-T-3').state).toBe('active')
+})
+
+test('R-bob-15: an active increment with an unverified requirement still blocks the next approval', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'bob/ledger.json': JSON.stringify({ ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }] }) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await approve($, 'INC-T-3')
+  expect(out).toContain('refused')
+  expect(out).toContain('INC-T-2')
+  expect(JSON.parse(w.files!['bob/ledger.json']).increments.find((i: any) => i.id === 'INC-T-2').state).toBe('active')
+})
+
+test('INC-03: the Waiting on you box and Project home draw on every surface', async ($, on) => {
+  await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /Waiting on you/ }))?.text).toBe('Waiting on you')
+    expect(await ui.find({ key: 'approve-INC-00' })).toBeDefined()
+    await ui.unmount()
+  }
 })
