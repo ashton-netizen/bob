@@ -1,0 +1,11 @@
+# Experience spike, kit run, 26 October 2026 (engine 2.1.308, claude plugin test, throwaway mod bob-ux-spike outside the repo)
+# Green run:
+(pass) test 1: a pane press starts a project (terminal) [20.62ms]
+(pass) test 3: a pane press approves; the engine's person check passes (terminal) [9.96ms]
+(pass) test 1: a pane press starts a project (desktop) [9.33ms]
+(pass) test 3: a pane press approves; the engine's person check passes (desktop) [9.31ms]
+(pass) test 2: plain words, Claude calls start_project with a name it chose [6.90ms]
+(pass) test 3, the other half: Claude calling approve_round is refused by the engine person check [7.08ms]
+ 6 pass
+ 0 fail
+# Red run, same tests with the button handler and the tool's write removed: tests 1 and 2 failed (3 fail lines: test 1 on terminal and desktop, test 2), the three test 3 lines passed. Test 3 cannot be proven by the kit: it has no implementation for ui.view, so its answer is the test's own. Live proof pending.
