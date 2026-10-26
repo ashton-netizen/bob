@@ -119,6 +119,102 @@
       "created_at": "2026-10-23T13:30:00+11:00",
       "source": "ai",
       "is_synthetic": false
+    },
+    {
+      "id": "R-bob-08",
+      "priority": "MUST",
+      "text": "a person starts a project by saying the idea in plain words: Claude calls BOB's start_project tool and chooses the name; nobody types a command",
+      "check": "live in a governed session: a project started from one sentence appears in bob-workspace.json and in the pane; the tool call and its result recorded",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-09",
+      "priority": "MUST",
+      "text": "an approval is written only on a person's own input (a pane click or a typed command), never on a call Claude makes; the engine's person check refuses Claude's own call",
+      "check": "live: Claude's own approve call is refused and the refusal text recorded; one click by Ash approves and the record is read back from bob/approvals.json",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-10",
+      "priority": "MUST",
+      "text": "Gate B runs at every round end, including in a session where another plugin's Stop hook runs first",
+      "check": "live with cc-plugin-sec-default installed: a round that writes a file and records no evidence is blocked, the block text recorded",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-11",
+      "priority": "MUST",
+      "text": "the pane is a Project home: the current project, a Start a project button, and the other projects as buttons that make one current in one click",
+      "check": "plugin test on terminal and desktop, then Ash's look: a click on another project makes it current; nothing typed",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-12",
+      "priority": "MUST",
+      "text": "a round is approved or sent back with a note by pane buttons in a Waiting on you box, with requirement chips by state, Pause and See evidence",
+      "check": "plugin test, then live: a click approval opens Gate A for that round; a send-back writes the note to the ledger and leaves the round unapproved",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-13",
+      "priority": "SHOULD",
+      "text": "while a project is being designed, the pane shows the six design-with-bob stages with the current one marked, the brief so far, and review pages opened from buttons",
+      "check": "plugin test: a synthetic project walked through two stages shows both marked done",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-14",
+      "priority": "MUST",
+      "text": "no next action BOB shows asks a person to type a /bob command",
+      "check": "a test over every next-action text the pane and the command replies produce: red on the 0.5.0 wording, green after",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-05", "S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-15",
+      "priority": "MUST",
+      "text": "approving the next increment closes the active one when all its requirements are verified, so adding scope never costs two approvals",
+      "check": "plugin test: approve INC-b with INC-a active and fully verified closes INC-a done and activates INC-b in one command; refused when INC-a has an unverified requirement",
+      "state": "not_assessed",
+      "evidence_ids": [],
+      "source_ids": ["S-06"],
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
     }
   ],
   "decisions": [

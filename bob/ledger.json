@@ -23,7 +23,7 @@
         "R-bob-00"
       ],
       "state": "active",
-      "approval_id": "AP-01",
+      "approval_id": "AP-02",
       "created_at": "2026-10-23T13:30:00+11:00",
       "source": "ai",
       "is_synthetic": false
@@ -38,6 +38,47 @@
       "state": "proposed",
       "approval_id": null,
       "created_at": "2026-10-23T13:30:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "INC-02",
+      "title": "Build 4 steps 1 and 2: the engine tests live (start a project from plain words, approval only on a person's own input) and Gate B first in line",
+      "requirement_ids": [
+        "R-bob-08",
+        "R-bob-09",
+        "R-bob-10"
+      ],
+      "state": "proposed",
+      "approval_id": null,
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "INC-03",
+      "title": "Build 4 steps 3 and 4: Project home and approve by button; approving the next increment closes a fully verified active one",
+      "requirement_ids": [
+        "R-bob-11",
+        "R-bob-12",
+        "R-bob-15"
+      ],
+      "state": "proposed",
+      "approval_id": null,
+      "created_at": "2026-10-26T09:45:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "INC-04",
+      "title": "Build 4 steps 5 and 6: the design stage view, and no next action asks a person to type",
+      "requirement_ids": [
+        "R-bob-13",
+        "R-bob-14"
+      ],
+      "state": "proposed",
+      "approval_id": null,
+      "created_at": "2026-10-26T09:45:00+11:00",
       "source": "ai",
       "is_synthetic": false
     }
