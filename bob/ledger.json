@@ -379,6 +379,39 @@
       "created_at": "2026-10-26T10:40:00+11:00",
       "source": "tool",
       "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-05",
+      "requirement_id": "R-bob-10",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-4/B4-INC-02-live.txt",
+      "captured_at": "2026-10-26T11:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-26T11:20:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-06",
+      "requirement_id": "R-bob-09",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-4/B4-INC-02-live.txt",
+      "captured_at": "2026-10-26T11:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-26T11:20:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-07",
+      "requirement_id": "R-bob-08",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-4/B4-INC-02-live.txt",
+      "captured_at": "2026-10-26T11:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-26T11:20:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
     }
   ]
 }

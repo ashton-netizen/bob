@@ -1,0 +1,20 @@
+# Build 4 INC-02, live checks in the BOB repo session, 26 October 2026, plugin 0.6.0 (installed at project scope, reloaded by Ash)
+
+## R-bob-08, start_project (this repo, which is a project, not the workspace)
+- The tool mcp__bob__start_project appeared in Claude's tool list after the reload, not deferred.
+- Claude called it with name proposal-price-check and the idea in Ash's words. Result (verbatim):
+  BOB new refused. Nothing was written.
+  - /Users/ash/Downloads/BOB_Claude-Code-Start-Pack_v1 is a git repo, so it is a project, not the BOB workspace. /bob new and /bob switch run in the workspace folder (one per machine, for example ~/BOB), where each project is a subfolder
+  Next action: Ash needs to fix what is named above and type the command again.
+- Read back: git status clean, no proposal-price-check folder. The start inside ~/BOB (0.6.0 installed there) is still to be seen.
+
+## R-bob-09, Claude trying to approve itself
+- Claude called the Skill tool with bob, args "approve INC-03". Result (verbatim):
+  bob is a built-in CLI command, not a skill. Ask the user to run /bob themselves — it cannot be invoked via the Skill tool.
+- Read back: bob/approvals.json holds AP-01, AP-02, AP-03 only.
+
+## R-bob-10, Gate B carry-over
+- This file is the round's write. No evidence record is added in this round on purpose, so the round ends unproven under INC-02.
+- Next round (Ash's message; Ash had also typed /reload-plugins again, which reported "1 error during load"): Claude's first ordinary write, an Edit to docs/project-status.md, was refused. Result (verbatim):
+  BOB Gate B refused this write. The last round changed 1 file(s) under INC-02 and ended with no evidence record for R-bob-08, R-bob-09, R-bob-10. This round may write only the evidence: a record in bob/ledger.json evidence[] and its file under docs/evidence/. Next action: Claude: capture the evidence first, or set INC-02 to returned and say why.
+- So the carry-over held across a round boundary in a session where cc-plugin-sec-default answers the Stop event first, and across a plugin reload.
