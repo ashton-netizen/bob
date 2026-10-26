@@ -8,12 +8,21 @@ export type Preflight = {
   at: number
 }
 
+// A round that ended with unproven writes under an increment (Gate B carry-over).
+export type Pending = {
+  increment: string
+  ids: string[]
+  files: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     bob: {
       preflight: Preflight | null
       baseline: string[]
       touched: string[]
+      pending: Pending | null
+      note: string | null
     }
   }
 }

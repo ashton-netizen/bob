@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Preflight } from '../types'
+import type { Pending, Preflight } from '../types'
 import { STALE_MS, activeIncrement, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
@@ -20,6 +20,10 @@ const TITLE = 'BOB'
 const preflightAtom = atom({ plugin: 'bob', key: 'preflight' } as const, null as Preflight | null)
 const baselineAtom = atom({ plugin: 'bob', key: 'baseline' } as const, [] as string[])
 const touchedAtom = atom({ plugin: 'bob', key: 'touched' } as const, [] as string[])
+// Gate B's carry-over (R-bob-10): a round that ended with unproven writes.
+const pendingAtom = atom({ plugin: 'bob', key: 'pending' } as const, null as Pending | null)
+// The last pane action's outcome, shown in the pane (R-bob-09).
+const noteAtom = atom({ plugin: 'bob', key: 'note' } as const, null as string | null)
 
 type Engine = Any
 
@@ -551,6 +555,100 @@ async function resetRound($: Engine) {
   const ids = active ? evidenceFor(m, active.requirement_ids ?? []).map(ev => String(ev.id)) : []
   await update($, baselineAtom, () => ids)
   await update($, touchedAtom, () => [])
+  await update($, pendingAtom, () => null)
+}
+
+// Evidence the active increment gained since the round's baseline.
+async function gainedEvidence($: Engine, m: Model, ids: string[]): Promise<Any[]> {
+  const base = new Set(await read($, baselineAtom))
+  return evidenceFor(m, ids).filter(ev => !base.has(String(ev.id)))
+}
+
+// Gate B's carry-over (R-bob-10). Another plugin's Stop hook can answer the
+// event before BOB sees it (seen 25 and 26 October 2026), and Gate B blocks
+// once per round. So a round that wrote files and gained no evidence is
+// carried into the next round, which may then write only the evidence.
+async function carryOver($: Engine) {
+  const wrote = await read($, touchedAtom)
+  if (wrote.length === 0) return
+  const m = await load($)
+  const active = m.governed && m.ledger ? activeIncrement(m) : null
+  if (!active) return
+  const ids: string[] = active.requirement_ids ?? []
+  const gained = await gainedEvidence($, m, ids)
+  if (gained.length) {
+    await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
+    return
+  }
+  await update($, pendingAtom, () => ({ increment: String(active.id), ids, files: wrote.length }))
+}
+
+// null when the write may go on; else the Gate B text. Evidence clears the hold.
+async function heldByGateB($: Engine, m: Model, isEvidence: boolean): Promise<string | null> {
+  const p = await read($, pendingAtom)
+  if (!p) return null
+  const active = activeIncrement(m)
+  if (!active || String(active.id) !== p.increment) {
+    await update($, pendingAtom, () => null)
+    return null
+  }
+  const gained = await gainedEvidence($, m, p.ids)
+  if (gained.length) {
+    await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
+    await update($, pendingAtom, () => null)
+    redraw($)
+    return null
+  }
+  if (isEvidence) return null
+  return (
+    `BOB Gate B refused this write. The last round changed ${p.files} file(s) under ${p.increment} and ended with no evidence record for ${p.ids.join(', ')}. ` +
+    `This round may write only the evidence: a record in bob/ledger.json evidence[] and its file under docs/evidence/. ` +
+    `Next action: Claude: capture the evidence first, or set ${p.increment} to returned and say why.`
+  )
+}
+
+const isEvidencePath = (m: Model, path: string) => {
+  const r = path.startsWith(`${m.root}/`) ? path.slice(m.root.length + 1) : path
+  return r === 'bob/ledger.json' || r.startsWith('docs/evidence/')
+}
+
+// R-bob-08: the model starts a project from the person's words, choosing the
+// name itself; the same checks and writes as /bob new.
+const START_PROJECT = {
+  name: 'start_project',
+  description:
+    'Start a new BOB project when the person describes an idea they want built. Choose a short name yourself (lowercase letters, digits and hyphens, up to 40 characters, from the idea); never ask the person to type a command or a name. Runs in the BOB workspace only.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'the project name Claude chose, for example proposal-price-check' },
+      idea: { type: 'string', description: 'the idea in the person\'s own words' },
+    },
+    required: ['name', 'idea'],
+  },
+  isDeferred: false,
+}
+
+// R-bob-09: an approval from a pane press. The engine answers $.ui.view with
+// { deny: 'not person-initiated' } outside the person's own input, so it is
+// asked first; any refusal fails closed. Then the same checks as /bob approve.
+async function pressApprove($: Engine, id: string) {
+  let deny: string | undefined
+  try {
+    deny = (await $.ui.view({}))?.deny
+  } catch {
+    deny = 'the engine\'s person check could not run'
+  }
+  if (deny) {
+    await update($, noteAtom, () => `Approve ${id} refused: ${deny}. Only a person's own click or typed command approves.`)
+    redraw($)
+    return
+  }
+  const text = await approve($, id, undefined)
+  await update($, noteAtom, () => text.split('\n')[0])
+  await resetRound($)
+  await writePage($)
+  redraw($)
 }
 
 const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.`
@@ -743,6 +841,12 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, new <name> (a project in the BOB workspace), switch <name>, adopt this project from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
 
+    try {
+      await $.tool.register(START_PROJECT)
+    } catch {
+      // a host that cannot register tools still has /bob new
+    }
+
     await runPreflight($)
     await resetRound($)
     await writePage($)
@@ -752,10 +856,21 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A new round of the main loop: carry an unproven round over (Gate B), then
+  // start the written-files list afresh. A subagent's turn is part of the round.
   on('turn.start', async ($, e, next) => {
+    if ((e as Any).agentId !== undefined) return next(e)
+    await carryOver($)
     await update($, touchedAtom, () => [])
+    redraw($)
     return next(e)
   })
+
+  on('tool.call', { tool: 'mcp__bob__start_project' }, async ($, e) => {
+    const text = await newProject($, String((e as Any).name ?? ''), 'plugin')
+    await writePage($)
+    return text.startsWith('BOB new refused') ? { deny: text } : { result: text }
+  }).catch(($, e, next) => (next.called ? next(e) : { deny: 'BOB start_project failed before it wrote anything. Next action: Claude: report the failure to Ash.' }))
 
   on('command.run', { command: 'bob' }, async ($, e) => {
     const result = await bobCommand($, e as Any)
@@ -771,6 +886,8 @@ export const register: Register = on => {
     if (!v.ok) return { deny: denial('Gate A', v) }
 
     const path = String((e as Any).file_path ?? '')
+    const held = m.governed ? await heldByGateB($, m, isEvidencePath(m, path)) : null
+    if (held) return { deny: held }
     if (m.governed && isBriefPath(path)) {
       const current = (await readText($, at(m.root, 'bob/brief.json'))) ?? ''
       const text = proposedText(e as Any, current)
@@ -800,6 +917,10 @@ export const register: Register = on => {
     }
     const v = approvalVerdict(m)
     if (!v.ok) return { deny: denial('Gate A', v) }
+    // A Bash write counts as evidence only when it names docs/evidence/; the
+    // remote checks stay the real line for anything a command hides.
+    const held = m.governed ? await heldByGateB($, m, command.includes('docs/evidence/')) : null
+    if (held) return { deny: held }
     if (m.governed) await update($, touchedAtom, list => [...list, `bash: ${e.command.slice(0, 60)}`].slice(-100))
     redraw($)
     return next(e)
@@ -841,8 +962,16 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
-    const b = describe(await load($), await read($, preflightAtom), Date.now())
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const m = await load($)
+    const b = describe(m, await read($, preflightAtom), Date.now())
+    const pending = await read($, pendingAtom)
+    const note = await read($, noteAtom)
+    // One Approve button, for the next increment waiting, only while none is active.
+    const waiting: Any | undefined =
+      m.governed && m.ledger && !activeIncrement(m)
+        ? ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
+        : undefined
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -856,6 +985,15 @@ export const register: Register = on => {
           <Text>Current task: {b.task}</Text>
           <Text>Blocker: {b.blocker}</Text>
           <Text weight="semibold">Next action: {b.next}</Text>
+          {waiting ? (
+            <Button key={`approve-${waiting.id}`} variant="primary" onPress={() => pressApprove($, String(waiting.id))}>
+              {`Approve ${waiting.id}: ${String(waiting.title ?? '').slice(0, 80)}`}
+            </Button>
+          ) : null}
+          {note ? <Text dimColor>{note}</Text> : null}
+          {pending ? (
+            <Text color="warning">{`Gate B: the last round left ${pending.ids.join(', ')} unproven; only evidence may be written until it lands`}</Text>
+          ) : null}
           {b.stale ? <Text color="warning">{b.stale}</Text> : <Text dimColor>ledger: current</Text>}
           {b.preflight ? (
             b.preflight.stops.length ? (
