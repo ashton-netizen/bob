@@ -1,5 +1,7 @@
 # gitleaks false positives, one fingerprint per line (commit:file:rule:line). Never a broad allowlist.
 # 22 October 2026: a SHA-256 file hash in the brand pack's manifest, on the entry for design-tokens.md; the word "tokens" plus a hex string reads as a key to the generic-api-key rule. It is a file digest, verified against the pack, not a credential.
 e2fe8eabeeedef59f6956692e6efad0650a19956:references/bob-brand/MANIFEST-SHA256.json:generic-api-key:29
-# 27 October 2026: a pane Button address in a test, key: 'approve-INC-01', read as a key by the generic-api-key rule (pull request 31, first commit). It is an element address, not a credential; the test now builds it with approveKey().
+# 27 October 2026, pull request 31: pane Button addresses for Approve in a test read as keys by the generic-api-key rule (element addresses, not credentials; the test now builds them with approveKey). The third line is this file's own earlier comment, which quoted one.
 3366a95f16aa7b5864974c0a54a699cce6ea2b62:hooks/bob.test.tsx:generic-api-key:1168
+3366a95f16aa7b5864974c0a54a699cce6ea2b62:hooks/bob.test.tsx:generic-api-key:1169
+61e5f8f3df3c13b981409385f0d2c8a5b452f90f:.gitleaksignore:generic-api-key:4
