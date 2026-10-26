@@ -117,13 +117,12 @@ Where it stands: Builds 1 and 2 done; Build 3 items 4 (stack preflight) and 5 (r
 Why it feels off track (Ash, 26 October 2026, first live look in `~/BOB`): Builds 1 to 3 delivered the enforcement layer (gates, ledger, preflight, board). The experience layer the original brief asked for was never designed or approved: brief section 1 "a friendly visual workspace", section 6 Project home with "start a new one", "Mags must not have to repeatedly type continue", and plan Part 1 "must not look like a terminal". The 0.4.0 pane has no Button or input; every action is a typed slash command with syntax rules. Ash's fix: BOB starts a project from plain words or a pane button, never a typed command with rules. Ash chose design first. The live `/bob new` check is withdrawn until that exists.
 
 Critical path to the Mags pilot, in order. Nothing below starts before the line above it is seen.
-1. Claude: finish the gap map, the original brief set against what BOB does today, screen by screen (started 26 October 2026 in the `~/BOB` session; it lands in this repo under `docs/evidence/design/`).
-2. Claude: design the experience layer from the gap map with design-with-bob on this repo (Project home, start a project from plain words or a pane button, no typed command with rules), and revise `bob/brief.json` so R-bob-01 to R-bob-07 sit under it. Ash needs to: look at one review page and say yes or what is wrong. That look is the mockup approval (it also closes OQ-2).
-3. Claude: close INC-00 (R-bob-00 verified) and propose the first experience increment; Ash needs to approve it by a pane button once one exists, typed `/bob approve` only until then. Gate B must be proven to fire first: it is skipped while `cc-plugin-sec-default` runs its Stop hook ahead of BOB (seen 25 October 2026).
-4. Claude: update `~/BOB` to the release that carries the experience increment and run the live check there: a project started from plain words appears in the pane with no folder picking and nothing typed.
-5. Ash needs to: send one screenshot of what Choose environment opens in the Code tab's new-session picker. Claude writes the saved-environment step only from that screen.
-6. Claude: run the design room live once in Cowork and record what Ash saw and disliked (R-bob-07).
-7. The Mags pilot kickoff (Build 3 item 8), opening with the saved-environment setup from step 5.
+1. Done 26 October 2026: gap map and wireframe v1 (`docs/evidence/design/reset-gap-map-and-wireframe_v1.html`), approved by Ash by popup. Kit stage of the three engine tests done (`docs/evidence/experience/`); the live stage did not run (the session mod never loaded; a stand-alone run loaded the tools and stopped at an expired sign-in) and Ash chose to fold it into Build 4.
+2. Build 4, the workspace: `docs/KICKOFF-BUILD-4_proposed.md`. Step 1 is the three engine tests live inside BOB's own plugin, step 2 fixes Gate B, then Project home, approve by button, the design stage view, and a test that no next action asks a person to type. Claude closes INC-00 and writes Build 4 as increments in `bob/ledger.json` when Ash says start; approval by typed `/bob approve` only until step 4 gives the button.
+3. Claude: once Build 4 step 3 ships, update `~/BOB` to that release and run the live check there: a project started from plain words appears in the pane with no folder picking and nothing typed.
+4. Ash needs to: send one screenshot of what Choose environment opens in the Code tab's new-session picker. Claude writes the saved-environment step only from that screen.
+5. Claude: run the design room live once in Cowork and record what Ash saw and disliked (R-bob-07).
+6. The Mags pilot kickoff (Build 5), opening with the saved-environment setup from step 4.
 
 Off the critical path (run when the path is waiting, never instead of it):
 - tAItans adopt (Build 3 item 1, second half). Its folder is the publish dir: switch to main before any deploy; adopt never deploys.
