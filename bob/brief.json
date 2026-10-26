@@ -209,7 +209,7 @@
       "priority": "MUST",
       "text": "approving the next increment closes the active one when all its requirements are verified, so adding scope never costs two approvals",
       "check": "plugin test: approve INC-b with INC-a active and fully verified closes INC-a done and activates INC-b in one command; refused when INC-a has an unverified requirement",
-      "state": "implemented",
+      "state": "verified",
       "evidence_ids": ["E-BOB-10"],
       "source_ids": ["S-06"],
       "created_at": "2026-10-26T09:45:00+11:00",
