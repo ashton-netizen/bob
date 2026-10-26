@@ -24,6 +24,8 @@ const touchedAtom = atom({ plugin: 'bob', key: 'touched' } as const, [] as strin
 const pendingAtom = atom({ plugin: 'bob', key: 'pending' } as const, null as Pending | null)
 // The last pane action's outcome, shown in the pane (R-bob-09).
 const noteAtom = atom({ plugin: 'bob', key: 'note' } as const, null as string | null)
+// The main loop's running turn, for Pause (R-bob-12); null between turns.
+const turnAtom = atom({ plugin: 'bob', key: 'turn' } as const, null as string | null)
 
 type Engine = Any
 
@@ -326,8 +328,14 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   const increments: Any[] = m.ledger.increments ?? []
   const inc = increments.find(i => i.id === id)
   if (!inc) return refusedText('approve', [`${id} is not an increment in bob/ledger.json (${increments.map(i => i.id).join(', ') || 'none'})`])
+  // R-bob-15: an active increment whose requirements are all verified or
+  // accepted is closed by this approval, so adding scope costs one approval.
   const other = increments.find(i => i.state === 'active' && i.id !== id)
-  if (other) return refusedText('approve', [`${other.id} is active; one increment at a time. Close ${other.id} (done or returned) before approving ${id}`])
+  if (other) {
+    const reqs = ((m.brief.requirements ?? []) as Any[])
+    const open = ((other.requirement_ids ?? []) as string[]).filter(rid => !['verified', 'accepted'].includes(String(reqs.find(r => r.id === rid)?.state)))
+    if (open.length) return refusedText('approve', [`${other.id} is active and ${open.join(', ')} ${open.length === 1 ? 'is' : 'are'} not verified yet; one increment at a time. Verify them, or close ${other.id} (done or returned), before approving ${id}`])
+  }
   if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
   const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && (a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash)))
   if (dup) return refusedText('approve', [`${id} is already approved by ${dup.id} at the current brief hash ${short(m.hash)}; approvals are immutable and never duplicated`])
@@ -357,12 +365,16 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   const approvalsFile = (await readJson($, at(m.root, 'bob/approvals.json'), [])) ?? {}
   await $.fs.write(at(m.root, 'bob/approvals.json'), pretty({ ...approvalsFile, approvals: [...m.approvals, record] }))
 
-  const ledger = { ...m.ledger, increments: increments.map(i => (i.id === id ? { ...i, state: 'active', approval_id: record.id } : i)) }
+  const ledger = {
+    ...m.ledger,
+    increments: increments.map(i => (i.id === id ? { ...i, state: 'active', approval_id: record.id } : other && i.id === other.id ? { ...i, state: 'done' } : i)),
+  }
   await $.fs.write(at(m.root, 'bob/ledger.json'), pretty(ledger))
   redraw($)
 
   return [
     `BOB approve: ${record.id} written to bob/approvals.json by ${approver} for ${id} at brief hash ${short(m.hash)}.`,
+    ...(other ? [`${other.id} closed (done): every requirement in it is verified.`] : []),
     `${id} is now active (approved, then active). Gate A allows writes under it; Gate B requires evidence for ${(inc.requirement_ids ?? []).join(', ') || 'its requirement ids'} before a round that writes can end.`,
     'Nothing was committed.',
   ].join('\n')
@@ -629,25 +641,88 @@ const START_PROJECT = {
   isDeferred: false,
 }
 
-// R-bob-09: an approval from a pane press. The engine answers $.ui.view with
-// { deny: 'not person-initiated' } outside the person's own input, so it is
-// asked first; any refusal fails closed. Then the same checks as /bob approve.
-async function pressApprove($: Engine, id: string) {
-  let deny: string | undefined
-  try {
-    deny = (await $.ui.view({}))?.deny
-  } catch {
-    deny = 'the engine\'s person check could not run'
-  }
-  if (deny) {
-    await update($, noteAtom, () => `Approve ${id} refused: ${deny}. Only a person's own click or typed command approves.`)
+// R-bob-09 and R-bob-12: pane actions are a person's. A press or a field
+// submit is raised only by a surface the person uses; no plugin and no model
+// tool can raise one. So the action is judged by the surface it came from and
+// refused without one. ($.ui.view was tried first and answered "no main view
+// here" to Ash's real click on the desktop app, 26 October 2026.)
+const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile']
+const byPerson = (e: Any) => SURFACES.includes(String(e?.surface))
+
+async function personRefused($: Engine, what: string, e: Any): Promise<boolean> {
+  if (byPerson(e)) return false
+  await update($, noteAtom, () => `${what} refused: it did not come from a person's own click or typing.`)
+  redraw($)
+  return true
+}
+
+async function pressApprove($: Engine, id: string, e: Any) {
+  if (await personRefused($, `Approve ${id}`, e)) return
+  const text = await approve($, id, undefined)
+  await update($, noteAtom, () => text.split('\n').slice(0, 2).join(' '))
+  await resetRound($)
+  await writePage($)
+  redraw($)
+}
+
+// Send back: the person's note goes to the ledger as a human event; the
+// increment stays unapproved.
+async function sendBack($: Engine, id: string, note: string, e: Any) {
+  if (await personRefused($, `Send back ${id}`, e)) return
+  const text = note.trim()
+  if (!text) {
+    await update($, noteAtom, () => `Send back ${id}: write the note first, then press Send back.`)
     redraw($)
     return
   }
-  const text = await approve($, id, undefined)
-  await update($, noteAtom, () => text.split('\n')[0])
-  await resetRound($)
+  const m = await load($)
+  if (!m.ownLedger || !m.ledger) return
+  const events: Any[] = m.ledger.events ?? []
+  const now = stamp()
+  const event = { id: `EV-BOB-${String(events.length + 1).padStart(2, '0')}`, run_id: null, at: now, origin: 'human', type: 'sent_back', detail: `sent back ${id}: ${text}`, created_at: now, source: 'human', is_synthetic: false }
+  await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, events: [...events, event] }))
+  await update($, noteAtom, () => `Sent back ${id} with your note. It stays unapproved; Claude reads the note next.`)
   await writePage($)
+  redraw($)
+}
+
+async function pressSwitch($: Engine, name: string, e: Any) {
+  if (await personRefused($, `Open ${name}`, e)) return
+  const text = await switchProject($, name, undefined)
+  await update($, noteAtom, () => text.split('\n')[0])
+  redraw($)
+}
+
+// Start a project from the person's words: the idea goes to Claude as their
+// own message, and Claude names the project and calls start_project.
+async function submitIdea($: Engine, idea: string, e: Any) {
+  if (await personRefused($, 'Start a project', e)) return
+  const text = idea.trim()
+  if (!text) return
+  await $.prompt.submit({
+    text: `Start a new BOB project for this idea, in my words: "${text}". Choose the project name yourself and call start_project; do not ask me to type a command.`,
+    asUser: true,
+  })
+}
+
+// A file:// link is drawn as plain text on the desktop app, so See evidence
+// asks Claude to show the round's evidence in the chat.
+async function seeEvidence($: Engine, id: string, e: Any) {
+  if (await personRefused($, 'See evidence', e)) return
+  await $.prompt.submit({ text: `Show me the evidence recorded for ${id}: each requirement, its state, and the evidence file behind it, in plain words.`, asUser: true })
+}
+
+async function pressPause($: Engine, e: Any) {
+  if (await personRefused($, 'Pause', e)) return
+  const turnId = await read($, turnAtom)
+  if (!turnId) return
+  try {
+    await $.turn.abort({ turnId })
+    await update($, noteAtom, () => 'Paused: Claude stopped the running round. Send a message to carry on.')
+  } catch {
+    await update($, noteAtom, () => 'Pause: no round is running now.')
+  }
+  await update($, turnAtom, () => null)
   redraw($)
 }
 
@@ -862,7 +937,16 @@ export const register: Register = on => {
     if ((e as Any).agentId !== undefined) return next(e)
     await carryOver($)
     await update($, touchedAtom, () => [])
+    await update($, turnAtom, () => String((e as Any).turnId ?? '') || null)
     redraw($)
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    if ((e as Any).agentId === undefined) {
+      await update($, turnAtom, () => null)
+      redraw($)
+    }
     return next(e)
   })
 
@@ -962,19 +1046,78 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Text, Button, Input } = $.ui.resolve(e)
     const m = await load($)
     const b = describe(m, await read($, preflightAtom), Date.now())
     const pending = await read($, pendingAtom)
     const note = await read($, noteAtom)
-    // One Approve button, for the next increment waiting, only while none is active.
-    const waiting: Any | undefined =
-      m.governed && m.ledger && !activeIncrement(m)
-        ? ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
-        : undefined
+    const turnId = await read($, turnAtom)
+
+    const tracked = m.governed && m.ledger
+    const reqs = ((m.brief?.requirements ?? []) as Any[])
+    const stateOf = (rid: string) => String(reqs.find(r => r.id === rid)?.state ?? 'unknown')
+    const active: Any | null = tracked ? activeIncrement(m) : null
+    const activeDone = !!active && ((active.requirement_ids ?? []) as string[]).every(rid => ['verified', 'accepted'].includes(stateOf(rid)))
+    // Every increment waiting for a person, while none is active or the active one is fully verified (R-bob-15).
+    const waiting: Any[] = tracked && (!active || activeDone) ? ((m.ledger.increments ?? []) as Any[]).filter(i => ['proposed', 'approved'].includes(i.state)) : []
+    const others: Any[] = m.place.workspace ? ((m.place.workspace.projects ?? []) as Any[]).filter(p => p.name !== m.place.project) : []
+    const chips = (ids: string[]) => (
+      <Box flexDirection="row" gap={1} flexWrap="wrap">
+        {ids.map(rid => (
+          <Text key={rid} color={colour({ id: rid, text: '', state: stateOf(rid), known: stateOf(rid) !== 'unknown', evidence: '' })}>
+            [{rid} {stateOf(rid).replace('_', ' ')}]
+          </Text>
+        ))}
+      </Box>
+    )
 
     return (
       <Box flexDirection="column" gap={1}>
+        {waiting.length ? (
+          <Box flexDirection="column" gap={1} borderStyle="round" paddingX={1}>
+            <Text weight="semibold">Waiting on you</Text>
+            {waiting.map(inc => (
+              <Box key={`wait-${inc.id}`} flexDirection="column">
+                <Text>{`${inc.id}: ${String(inc.title ?? '')}`}</Text>
+                {chips((inc.requirement_ids ?? []) as string[])}
+                <Button key={`approve-${inc.id}`} variant="primary" onPress={press => pressApprove($, String(inc.id), press)}>
+                  {`Approve ${inc.id}`}
+                </Button>
+                <Input key={`sendback-${inc.id}`} label="Send back with a note" placeholder="what needs to change" submitLabel="Send back" onSubmit={(value, ev) => sendBack($, String(inc.id), value, ev)} />
+              </Box>
+            ))}
+          </Box>
+        ) : null}
+
+        {active ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1}>
+            <Text weight="semibold">{`Round: ${active.id}: ${String(active.title ?? '')}`}</Text>
+            {chips((active.requirement_ids ?? []) as string[])}
+            <Box flexDirection="row" gap={2}>
+              {turnId ? (
+                <Button key="pause" onPress={press => pressPause($, press)}>
+                  Pause
+                </Button>
+              ) : null}
+              <Button key="see-evidence" onPress={press => seeEvidence($, String(active.id), press)}>
+                See evidence
+              </Button>
+            </Box>
+          </Box>
+        ) : null}
+
+        {m.place.workspace ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1}>
+            <Text weight="semibold">Projects</Text>
+            {others.map(p => (
+              <Button key={`project-${p.name}`} plain onPress={press => pressSwitch($, String(p.name), press)}>
+                {`Open ${p.name}`}
+              </Button>
+            ))}
+            <Input key="start-idea" label="Start a project" placeholder="describe your idea in a sentence" submitLabel="Start" onSubmit={(value, ev) => submitIdea($, value, ev)} />
+          </Box>
+        ) : null}
+
         <Box flexDirection="column">
           <Text weight="semibold">BOB · Now</Text>
           <Text>Project: {b.project}</Text>
@@ -985,11 +1128,6 @@ export const register: Register = on => {
           <Text>Current task: {b.task}</Text>
           <Text>Blocker: {b.blocker}</Text>
           <Text weight="semibold">Next action: {b.next}</Text>
-          {waiting ? (
-            <Button key={`approve-${waiting.id}`} variant="primary" onPress={() => pressApprove($, String(waiting.id))}>
-              {`Approve ${waiting.id}: ${String(waiting.title ?? '').slice(0, 80)}`}
-            </Button>
-          ) : null}
           {note ? <Text dimColor>{note}</Text> : null}
           {pending ? (
             <Text color="warning">{`Gate B: the last round left ${pending.ids.join(', ')} unproven; only evidence may be written until it lands`}</Text>

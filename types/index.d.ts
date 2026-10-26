@@ -23,6 +23,7 @@ declare module 'claude-code' {
       touched: string[]
       pending: Pending | null
       note: string | null
+      turn: string | null
     }
   }
 }
