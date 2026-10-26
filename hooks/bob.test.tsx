@@ -119,6 +119,11 @@ type World = {
   runs?: { argv: readonly string[]; cwd?: string }[]
   // git is not installed: every git call exits 127.
   gitMissing?: boolean
+  // What the engine's person check ($.ui.view) answers: absent is a person's
+  // own input; 'not person-initiated' is the engine's answer to anything else.
+  personDeny?: string
+  // Every $.tool.register the module made, in order.
+  tools?: { name: string; isDeferred?: unknown }[]
 }
 
 // The repo root the double serves, answered to $.session.root(). Every repo
@@ -225,6 +230,16 @@ function world(on: any, w: World) {
     }
   })
   on('command.register', () => ({ value: { command: 'bob' } }))
+  w.tools = w.tools ?? []
+  on('tool.register', (_: unknown, e: { name: string; isDeferred?: unknown }) => {
+    w.tools!.push({ name: e.name, isDeferred: e.isDeferred })
+    return { value: { tool: `mcp__bob__${e.name}` } }
+  })
+  // The kit has no person check of its own: this answer is the test's, so a
+  // press test proves the wiring only. The live session is the proof (R-bob-09).
+  on('ui.view', () => ({ value: w.personDeny ? { deny: w.personDeny } : {} }))
+  on('turn.start', (_: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('ui.toast', () => ({ value: undefined }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('tool.call', () => ({ result: {} }))
@@ -1002,4 +1017,117 @@ test('docs/status.html escapes requirement text, so a requirement cannot inject 
   const html = statusPage(w)[0]?.text ?? ''
   expect(html).not.toContain('<script>alert')
   expect(html).toContain('&lt;script&gt;')
+})
+
+// ---------------------------------------------------------------------------
+// Build 4, INC-02: nobody types a command. R-bob-08 a project starts from plain
+// words (Claude calls start_project), R-bob-09 an approval only on a person's
+// own input (a pane press passes the engine's person check), R-bob-10 Gate B
+// holds even when another plugin's Stop hook sends the event past BOB.
+// ---------------------------------------------------------------------------
+
+test('R-bob-08: session start registers start_project for the model, not deferred', async ($, on) => {
+  const w = await workspaceWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const t = w.tools!.find(x => x.name === 'start_project')
+  expect(t?.name).toBe('start_project')
+  expect(t?.isDeferred).toBe(false)
+})
+
+test('R-bob-08: Claude starts a project from plain words with a name it chose; a bad name is refused and nothing is written', async ($, on) => {
+  const w = await workspaceWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+
+  const ok = await $.tool.call({ tool: 'mcp__bob__start_project', name: 'proposal-price-check', idea: 'check proposals against the rate card' } as any)
+  expect(said(ok)).toBe('')
+  expect(inits(w).map(r => [...r.argv])).toEqual([['git', 'init', '-b', 'main', `${ROOT}/proposal-price-check`]])
+  const ws = wsOf(w)
+  expect(ws.current).toBe('proposal-price-check')
+  expect(ws.projects[0].source).toBe('tool')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /^Project:/ }))?.text).toContain('proposal-price-check')
+  await ui.unmount()
+
+  const n = w.writes!.length
+  const bad = said(await $.tool.call({ tool: 'mcp__bob__start_project', name: 'Proposal Price!', idea: 'x' } as any))
+  expect(bad).toContain('not a project name')
+  expect(w.writes!.length).toBe(n)
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`R-bob-09: a press on Approve in the pane writes the approval when the engine says a person pressed it (${surface})`, async ($, on) => {
+    const w = await adoptWorld(on)
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await adopt($)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'approve-INC-00' })
+    const approvals = JSON.parse(w.files!['bob/approvals.json']).approvals
+    expect(approvals.length).toBe(1)
+    expect(approvals[0].source).toBe('human')
+    expect(approvals[0].scope_increment_ids).toEqual(['INC-00'])
+    expect(JSON.parse(w.files!['bob/ledger.json']).increments.find((i: any) => i.id === 'INC-00').state).toBe('active')
+    await ui.unmount()
+  })
+
+  test(`R-bob-09: the same press writes nothing when the engine says it was not a person, and the pane says so (${surface})`, async ($, on) => {
+    const w = await adoptWorld(on)
+    w.personDeny = 'not person-initiated'
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await adopt($)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'approve-INC-00' })
+    expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(0)
+    expect((await ui.find({ type: 'Text', text: /not person-initiated/ }))?.text).toContain('refused')
+    await ui.unmount()
+  })
+}
+
+test('R-bob-09: no Approve button while an increment is active', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: 'approve-INC-T-2' })).toBe(undefined)
+  await ui.unmount()
+})
+
+test('R-bob-10: a round left unproven (its Stop never reached BOB) holds the next round to evidence writes until evidence lands', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'round 1', turnId: 't1' })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+  // No classic.Stop here: another plugin answered it before BOB (seen live 25 and 26 October 2026).
+  await $.turn.start({ text: 'round 2', turnId: 't2' })
+
+  const held = said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))
+  expect(held).toContain('Gate B')
+  expect(held).toContain('R-T-03')
+  const bash = said(await $.tool.call({ tool: 'Bash', command: 'echo hi > /repo/out.txt' }))
+  expect(bash).toContain('Gate B')
+
+  // The evidence itself may be written.
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/docs/evidence/b4/E-T-04.txt`, content: 'ran' }))).toBe('')
+  expect(said(await $.tool.call({ tool: 'Edit', file_path: `${ROOT}/bob/ledger.json`, old_string: 'a', new_string: 'b' }))).toBe('')
+
+  const ledger = LEDGER as { evidence: unknown[] }
+  w.ledger = { ...LEDGER, evidence: [...ledger.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T11:00:00+11:00')] }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))).toBe('')
+})
+
+test('R-bob-10: the one Stop block per round still carries over: a round let end unproven holds the next round', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'round 1', turnId: 't1' })
+  await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' })
+  expect((await $.classic.Stop(stopInput())).block ?? '').toContain('Gate B')
+  expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
+  await $.turn.start({ text: 'round 2', turnId: 't2' })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))).toContain('Gate B')
+})
+
+test('R-bob-10: a round that wrote nothing leaves the next round free', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'round 1', turnId: 't1' })
+  await $.turn.start({ text: 'round 2', turnId: 't2' })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
 })
