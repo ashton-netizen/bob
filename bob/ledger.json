@@ -63,7 +63,7 @@
         "R-bob-12",
         "R-bob-15"
       ],
-      "state": "active",
+      "state": "done",
       "approval_id": "AP-04",
       "created_at": "2026-10-26T09:45:00+11:00",
       "source": "ai",
@@ -76,8 +76,8 @@
         "R-bob-13",
         "R-bob-14"
       ],
-      "state": "proposed",
-      "approval_id": null,
+      "state": "active",
+      "approval_id": "AP-05",
       "created_at": "2026-10-26T09:45:00+11:00",
       "source": "ai",
       "is_synthetic": false
@@ -443,6 +443,50 @@
       "captured_at": "2026-10-27T09:00:00+11:00",
       "origin": "tool",
       "created_at": "2026-10-27T09:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-11",
+      "requirement_id": "R-bob-09",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-4/B4-INC-03-live-click.txt",
+      "captured_at": "2026-10-27T09:50:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-27T09:50:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-12",
+      "requirement_id": "R-bob-12",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-4/B4-INC-03-live-click.txt",
+      "captured_at": "2026-10-27T09:50:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-27T09:50:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-13",
+      "requirement_id": "R-bob-13",
+      "kind": "test",
+      "ref": "docs/evidence/build-4/B4-INC-04-tests-green.txt",
+      "captured_at": "2026-10-27T10:30:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-27T10:30:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-14",
+      "requirement_id": "R-bob-14",
+      "kind": "test",
+      "ref": "docs/evidence/build-4/B4-INC-04-tests-green.txt",
+      "captured_at": "2026-10-27T10:30:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-27T10:30:00+11:00",
       "source": "tool",
       "is_synthetic": false
     }

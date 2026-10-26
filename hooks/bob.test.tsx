@@ -262,6 +262,7 @@ function world(on: any, w: World) {
 // A pane Button's address for an increment's Approve. A helper, not a literal:
 // gitleaks reads `key: '<high-entropy string>'` as a generic API key (pull request 31).
 const approveKey = (id: string) => `approve-${id}`
+const paneKey = (kind: string, id: string) => `${kind}-${id}`
 
 
 const said = (r: unknown) => {
@@ -565,10 +566,11 @@ test('adopt writes ledger, sources, empty approvals, then brief.json LAST, then 
   expect(last.text).toContain('adopt')
   expect(last.text).toContain('INC-00')
 
-  // Governed now: no increment is active, so Gate A refuses and points at /bob approve.
+  // Governed now: no increment is active, so Gate A refuses and points at the pane's Approve button (R-bob-14).
   const denied = said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))
   expect(denied).toContain('Gate A')
-  expect(denied).toContain('/bob approve')
+  expect(denied).toContain('Approve INC-00')
+  expect(denied).not.toContain('/bob')
 })
 
 test('adopt appends to an existing docs/project-status.md rather than replacing it', async ($, on) => {
@@ -820,7 +822,7 @@ test('reconcile completes a stale run that already has a finished event, and lea
   const w = await approvedWorld(on, { ledger: withRuns([LEDGER.runs[0], runOf('verifying', '2026-10-21T09:00:00+11:00'), fresh], [finished]) })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   // Before it runs, the board names the command.
-  expect(String(((await $.command.run({ command: 'bob', args: '' })) as any).text ?? '')).toContain('/bob reconcile')
+  expect(String(((await $.command.run({ command: 'bob', args: '' })) as any).text ?? '')).toContain('Close stale run')
   await reconcile($)
   const l = JSON.parse(w.files!['bob/ledger.json'])
   expect(l.runs.find((r: any) => r.id === 'RUN-T-7').state).toBe('completed')
@@ -908,7 +910,8 @@ test('/bob new refuses a bad name, a reserved name and a folder that exists, and
   }
   const taken = await bob($, 'new taken')
   expect(taken).toContain('refused')
-  expect(taken).toContain('/bob switch taken')
+  expect(taken).toContain('Projects')
+  expect(taken).not.toContain('/bob')
   expect(w.writes!.length).toBe(0)
   expect(inits(w).length).toBe(0)
 })
@@ -968,7 +971,8 @@ test('/bob switch registers a subfolder the design room made, refuses one that d
 
   const missing = await bob($, 'switch nothere')
   expect(missing).toContain('refused')
-  expect(missing).toContain('/bob new nothere')
+  expect(missing).toContain('Start a project')
+  expect(missing).not.toContain('/bob')
   expect(w.writes!.length).toBe(0)
 
   await bob($, 'switch idea')
@@ -978,11 +982,11 @@ test('/bob switch registers a subfolder the design room made, refuses one that d
   expect(inits(w).length).toBe(0)
 })
 
-test('a workspace with no project yet: the pane names /bob new as the next action', async ($, on) => {
+test('a workspace with no project yet: the pane names the Start a project box as the next action (R-bob-14)', async ($, on) => {
   await workspaceWorld(on, { 'bob-workspace.json': JSON.stringify({ id: 'WS-01', current: null, projects: [], ...real('tool') }) })
   await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toContain('/bob new')
+  expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toContain('Start a project')
   expect(await ui.find({ type: 'Text', text: /SYNTHETIC/ })).toBe(undefined)
   await ui.unmount()
 })
@@ -1269,4 +1273,100 @@ test('INC-03: the Waiting on you box and Project home draw on every surface', as
     expect(await ui.find({ key: approveKey('INC-00') })).toBeDefined()
     await ui.unmount()
   }
+})
+
+// ---------------------------------------------------------------------------
+// Build 4, INC-04: R-bob-13 the design stage view, R-bob-14 no next action asks
+// a person to type a /bob command (every route is a pane button or plain words).
+// ---------------------------------------------------------------------------
+
+const designedTo = (stages: number): Record<string, string> => {
+  const f: Record<string, string> = {
+    'bob-workspace.json': wsFile(['idea'], 'idea'),
+    'idea/docs/project-status.md': '# idea\n',
+  }
+  if (stages >= 1) f['idea/bob/sources.json'] = JSON.stringify({ sources: [] })
+  if (stages >= 2) f['idea/bob/brief.md'] = '# idea\n\n## Who\nAccount leads who send proposals.\n\n## Job\nCatch underpriced lines before a proposal goes out.\n\n## Conflicts\nnone\n\n## Unknowns\nwhere the rate card lives\n'
+  if (stages >= 3) f['idea/bob/brief.md'] += '\n## Requirements\n- R-idea-01 MUST read the rate card\n'
+  if (stages >= 5) {
+    f['idea/docs/evidence/design/data-trace.md'] = '# data\n'
+    f['idea/docs/evidence/design/journey.md'] = '# journey\n'
+    f['idea/docs/evidence/design/screen-map.md'] = '# screens\n'
+  }
+  return f
+}
+
+test('R-bob-13: a project being designed shows the six stages, the done ones marked, the current one named, and the brief so far', async ($, on) => {
+  await workspaceWorld(on, designedTo(3))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /Capture/ }))?.text).toBe('✓ Capture')
+  expect((await ui.find({ type: 'Text', text: /Understand/ }))?.text).toBe('✓ Understand')
+  expect((await ui.find({ type: 'Text', text: /Design the product/ }))?.text).toBe('✓ Design the product')
+  expect((await ui.find({ type: 'Text', text: /Data and knowledge/ }))?.text).toBe('▶ Data and knowledge')
+  expect((await ui.find({ type: 'Text', text: /Challenge and approve/ }))?.text).toBe('· Challenge and approve')
+  expect((await ui.find({ type: 'Text', text: /Account leads/ }))?.text).toContain('Account leads who send proposals')
+  expect(await ui.find({ key: paneKey('review', 'journey') })).toBe(undefined)
+  await ui.unmount()
+})
+
+test('R-bob-13: review pages open from buttons once they exist, by asking Claude, never by a file path', async ($, on) => {
+  const w = await workspaceWorld(on, designedTo(5))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /Make it visible/ }))?.text).toBe('✓ Make it visible')
+  await ui.press({ key: paneKey('review', 'journey') })
+  expect(w.prompts!.length).toBe(1)
+  expect(w.prompts![0]).toContain('journey')
+  expect(await ui.find({ key: paneKey('review', 'screen-map') })).toBeDefined()
+  await ui.unmount()
+})
+
+test('R-bob-14: an approved design is adopted from a pane button, not a typed command', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'adopt' })
+  expect('bob/brief.json' in w.files!).toBe(true)
+  await ui.unmount()
+})
+
+test('R-bob-14: a stale run closes from a pane button; a changed brief is re-approved from one', async ($, on) => {
+  const w = await approvedWorld(on, { ledger: withRuns([runOf('running', '2026-10-21T09:00:00+11:00')]), files: { 'bob/ledger.json': JSON.stringify(withRuns([runOf('running', '2026-10-21T09:00:00+11:00')])) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /stale/ }))?.text).not.toContain('/bob')
+  await ui.press({ key: 'reconcile' })
+  expect(JSON.parse(w.files!['bob/ledger.json']).events.some((e: any) => e.type === 'reconciled')).toBe(true)
+  await ui.unmount()
+})
+
+test('R-bob-14: a brief changed after approval offers Re-approve in the pane', async ($, on) => {
+  const changed = { ...BRIEF, requirements: [...BRIEF.requirements, req('R-T-06', 'late add', 'designed')] }
+  await approvedWorld(on, { brief: changed })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: paneKey('reapprove', 'INC-T-2') })).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).not.toContain('/bob')
+  await ui.unmount()
+})
+
+test('R-bob-14: no next action BOB shows asks a person to type a /bob command', async ($, on) => {
+  const texts: string[] = []
+  const nextOf = async () => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+    texts.push(String((await ui.find({ type: 'Text', text: /Next action/ }))?.text ?? ''))
+    await ui.unmount()
+  }
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await nextOf()
+  const adopted = await adopt($)
+  texts.push(adopted.split('\n').filter(l => /Next action|Gate A/.test(l)).join(' '))
+  await nextOf()
+  texts.push(said(await $.tool.call({ tool: 'Write', file_path: '/repo/x.ts', content: 'x' })))
+  texts.push((await approve($, 'INC-99')).split('\n').filter(l => /Next action/.test(l)).join(' '))
+  void w
+  for (const t of texts) expect(t).not.toContain('/bob')
+  expect(texts.length).toBe(5)
 })

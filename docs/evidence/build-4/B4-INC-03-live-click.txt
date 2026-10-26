@@ -1,0 +1,10 @@
+# Build 4, approval by click, live on the desktop app, 26 to 27 October 2026, plugin 0.7.0
+
+- Claude closed INC-03 (done) as the last write of its round, so no increment was active and INC-04 was waiting.
+- Ash clicked "Approve INC-04" in the pane's "Waiting on you" box (Ash's message: "I clicked Approve INC-04").
+- Read back from bob/approvals.json by jq (tool result):
+  {"id":"AP-05","scope_increment_ids":["INC-04"],"brief_hash":"e07b4d863bbd","approver":"Ashton Bishop","approved_at":"2026-10-26T21:48:18.809Z","source":"human"}
+- Read back from bob/ledger.json: INC-04 state active, approval_id AP-05.
+- sha256 of bob/brief.json at that moment: e07b4d863bbd..., the same as the approval's brief_hash.
+- Gate A then allowed this file's write under INC-04 (the click opened Gate A for that round).
+- The earlier refusal (26 October, 0.6.0): the same kind of click wrote nothing, because $.ui.view answered "no main view here" on the desktop app. 0.7.0 judges a press by the surface that raised it.
