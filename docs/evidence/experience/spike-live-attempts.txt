@@ -1,0 +1,6 @@
+# Experience spike, live attempts, 26 October 2026
+# 1. In this desktop session: mods hot-reload answered declined once, then Ash clicked Turn them on; after two turn ends the mod folder has no .claude-plugin/types and the session has no mcp__bob-ux-spike tools. Not loaded. Recorded as not seen, not as broken.
+# 2. Stand-alone run, engine 2.1.308, claude -p --plugin-dir <spike>: the engine loaded the mod and registered both tools (init line below). The model call then failed on sign-in, so no tool was called:
+{"subtype":"init","spike_tools":["mcp__bob-ux-spike__approve_round","mcp__bob-ux-spike__start_project"]}
+{"type":"result","result":"Failed to authenticate: OAuth session expired and could not be refreshed"}
+# Not proven live: test 1 (a press runs the action), test 2 (Claude calls start_project from plain words), test 3 (press passes the person check, Claude's own call refused).
