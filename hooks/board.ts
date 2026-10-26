@@ -15,7 +15,7 @@ export type Place = {
 }
 
 export const WORKSPACE_FILE = 'bob-workspace.json'
-export const WORKSPACE_REPAIR = `Ash needs to rename ${WORKSPACE_FILE} in Finder (for example to bob-workspace.broken.json, never delete it), then type /bob switch <project> to register the project again`
+export const WORKSPACE_REPAIR = `Ash needs to rename ${WORKSPACE_FILE} in Finder (for example to bob-workspace.broken.json, never delete it), then ask Claude to open the project again`
 
 export type Model = {
   // The repo root, absolute, from $.session.root(). Every repo file is read and
@@ -83,15 +83,15 @@ export function approvalVerdict(m: Model): Verdict {
   if (m.place.workspaceError) return { ok: false, reason: m.place.workspaceError, next: WORKSPACE_REPAIR }
   if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
   if (!m.schema) return { ok: false, reason: 'bob/schema.json is missing or does not parse in the plugin folder', next: 'Ash needs to reinstall BOB' }
-  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. A typed /bob command lands in an open file pane: Ash needs to close file panes before typing one' }
-  if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to run /bob adopt, or restore the files from git' }
+  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. Text typed while a file pane is open lands in the file: Ash needs to close file panes before typing' }
+  if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to: ask Claude to design and adopt this project (the BOB pane offers Adopt once the proposal exists), or restore the files from git' }
   const active = activeIncrement(m)
   if (!active) {
     const proposed = ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
     return {
       ok: false,
       reason: 'no increment in bob/ledger.json has state active',
-      next: `Ash needs to type /bob approve ${proposed?.id ?? '<increment id>'} (the only writer of bob/approvals.json)`,
+      next: proposed ? `Ash needs to: press Approve ${proposed.id} in the BOB pane (a person's click is the only writer of bob/approvals.json)` : 'Ash needs to: ask Claude to propose the next increment, then approve it in the BOB pane',
     }
   }
   const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
@@ -102,13 +102,13 @@ export function approvalVerdict(m: Model): Verdict {
     return {
       ok: false,
       reason: `bob/brief.json changed after approval ${ids}: its hash ${short(m.hash)} matches no approval of ${active.id}`,
-      next: `Ash needs to re-approve ${active.id} against the current brief by typing /bob approve ${active.id} (one new record at brief_hash ${m.hash ?? 'unknown'})`,
+      next: `Ash needs to: press Approve ${active.id} again in the BOB pane, against the current brief (one new record at brief_hash ${m.hash ?? 'unknown'})`,
     }
   }
   return {
     ok: false,
     reason: `no approval record in bob/approvals.json covers ${active.id} at brief hash ${short(m.hash)}`,
-    next: `Ash needs to type /bob approve ${active.id} (one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'})`,
+    next: `Ash needs to: press Approve ${active.id} in the BOB pane (one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'})`,
   }
 }
 
@@ -157,8 +157,8 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
   const fresh = !m.governed && !m.ownLedger && !m.fixtures
   let next = 'Ash needs to: approve an increment and set it active'
   if (m.place.workspaceError) next = WORKSPACE_REPAIR
-  else if (m.place.workspace && !m.place.project) next = 'Ash needs to: type /bob new <name> to start a project (or /bob switch <name> for one already here)'
-  else if (fresh) next = `Ash needs to: design ${m.place.project} with the design-with-bob skill; Claude then writes the adopt proposal and Ash types /bob adopt`
+  else if (m.place.workspace && !m.place.project) next = 'Ash needs to: describe your idea in the Start a project box in the BOB pane, or just tell Claude about it'
+  else if (fresh) next = `Ash needs to: tell Claude about ${m.place.project}; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved`
   if (active) {
     const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
     const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
@@ -174,7 +174,7 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
   let stale: string | null = null
   if (m.ledgerMtimeMs !== null && lastEventAt !== undefined && m.ledgerMtimeMs < lastEventAt) stale = 'stale: ledger file is older than its last event'
   const staleRun = runs.find(r => ['running', 'verifying'].includes(r.state) && now - Date.parse(String(r.last_event_at)) > STALE_MS)
-  if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Type /bob reconcile to close it`
+  if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Press Close stale run in the BOB pane`
 
   const notes: string[] = []
   if (m.place.workspaceError) notes.push(m.place.workspaceError)

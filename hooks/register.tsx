@@ -245,7 +245,7 @@ function proposalRefusals(schema: Any, p: Any): string[] {
   return out
 }
 
-const refusedText = (what: string, reasons: string[], next = `Claude: fix the proposal at ${PROPOSAL_PATH} and run /bob ${what} again`) =>
+const refusedText = (what: string, reasons: string[], next = what === 'adopt' ? `Claude: fix the proposal at ${PROPOSAL_PATH}; Ash then presses Adopt in the BOB pane` : 'Ash needs to: fix what is named above, then try again from the BOB pane') =>
   [`BOB ${what} refused. Nothing was written.`, ...reasons.map(r => `- ${r}`), `Next action: ${next}.`].join('\n')
 
 
@@ -256,7 +256,7 @@ async function adopt($: Engine): Promise<string> {
 
   const place = await locate($)
   if (place.workspaceError) return refusedText('adopt', [place.workspaceError], WORKSPACE_REPAIR)
-  if (place.workspace && !place.project) return refusedText('adopt', ['this is the BOB workspace and no project is current, so there is nothing to adopt'], 'Ash needs to type /bob switch <project> (or /bob new <name>) first')
+  if (place.workspace && !place.project) return refusedText('adopt', ['this is the BOB workspace and no project is current, so there is nothing to adopt'], 'Ash needs to: open a project from the Projects box in the BOB pane, or start one there')
   const root = place.root
   const existing: string[] = []
   for (const f of BOB_FILES) if (await exists($, at(root, f))) existing.push(f)
@@ -309,7 +309,7 @@ async function adopt($: Engine): Promise<string> {
   return [
     `BOB adopt: wrote ${wrote.length} files, refused 0 (under ${root}).`,
     ...wrote.map(w => `- wrote ${w}`),
-    `Gate A is now engaged: no increment is active, so every write is refused until a person types /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`,
+    `Gate A is now engaged: no increment is active, so every write is refused until Ash presses Approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'} in the BOB pane.`,
     'Nothing was committed: committing is a Gate A decision in the session.',
   ].join('\n')
 }
@@ -390,7 +390,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
 // The name rules live in bob/schema.json (workspace).
 // ---------------------------------------------------------------------------
 
-const RETYPE = 'Ash needs to fix what is named above and type the command again'
+const RETYPE = 'Ash needs to: fix what is named above and try again, or tell Claude the idea and Claude starts it'
 
 async function workspaceRules($: Engine): Promise<Any | null> {
   return ((await readJson($, `${$.plugin.root}/bob/schema.json`, [])) ?? {}).workspace ?? null
@@ -444,7 +444,7 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
   const why = await placeRefusals($, place, rules, name)
   if (why.length) return refusedText('new', why, RETYPE)
   const dir = at(place.session, name)
-  if (await exists($, dir)) return refusedText('new', [`${name} already exists in this workspace. Type /bob switch ${name} to work on it`], RETYPE)
+  if (await exists($, dir)) return refusedText('new', [`${name} already exists in this workspace. Open it from the Projects box in the BOB pane`], RETYPE)
 
   let git: Any = null
   try {
@@ -452,13 +452,13 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
   } catch {
     git = null
   }
-  if (!git || git.exitCode !== 0) return refusedText('new', ['stack gap: git not found, and every BOB project is a git repo'], 'Ash needs to install git, then type /bob new again')
+  if (!git || git.exitCode !== 0) return refusedText('new', ['stack gap: git not found, and every BOB project is a git repo'], 'Ash needs to install git, then try again')
   const init = await $.process.run(['git', 'init', '-b', 'main', dir], { cwd: place.session })
   if (init.exitCode !== 0) return refusedText('new', [`git init failed for ${dir}: ${String(init.stderr ?? '').trim() || `exit ${init.exitCode}`}`], RETYPE)
 
   const wrote: string[] = []
   const now = stamp()
-  await $.fs.write(at(dir, 'docs/project-status.md'), `# ${name} · project status (living file, update in place)\n\nA BOB project in the workspace ${place.session}. Not governed yet: no bob/brief.json.\n\n## Build log (one line per step: step, state, evidence)\n- /bob new, ${now}: implemented. Folder ${dir} made, git initialised on main, nothing committed; registered in ${WORKSPACE_FILE} as the current project. Next: Ash needs to design it with the design-with-bob skill; Claude then writes the adopt proposal and Ash types /bob adopt.\n`)
+  await $.fs.write(at(dir, 'docs/project-status.md'), `# ${name} · project status (living file, update in place)\n\nA BOB project in the workspace ${place.session}. Not governed yet: no bob/brief.json.\n\n## Build log (one line per step: step, state, evidence)\n- /bob new, ${now}: implemented. Folder ${dir} made, git initialised on main, nothing committed; registered in ${WORKSPACE_FILE} as the current project. Next: Ash tells Claude about the idea; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved.\n`)
   wrote.push(`${name}/docs/project-status.md`)
   const notes: string[] = []
   if (!(await exists($, at(place.session, 'CLAUDE.md')))) {
@@ -481,7 +481,7 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
     ...wrote.map(w => `- wrote ${w}`),
     ...notes,
     'The pane now shows this project, and the gates and /bob adopt work on it.',
-    'Next action: Ash needs to design it with the design-with-bob skill (here or in Cowork); Claude then writes the adopt proposal and Ash types /bob adopt.',
+    'Next action: Ash needs to: tell Claude about the idea; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved.',
   ].join('\n')
 }
 
@@ -494,7 +494,7 @@ async function switchProject($: Engine, nameArg: string, originKind: string | un
   const why = await placeRefusals($, place, rules, name)
   if (why.length) return refusedText('switch', why, RETYPE)
   const dir = at(place.session, name)
-  if (!(await exists($, dir))) return refusedText('switch', [`${name} is not a folder in this workspace. Type /bob new ${name} to make it`], RETYPE)
+  if (!(await exists($, dir))) return refusedText('switch', [`${name} is not a folder in this workspace. Start it from the Start a project box in the BOB pane`], RETYPE)
 
   const added = await registerProject($, place, name, originKind && NON_HUMAN_ORIGINS.includes(originKind) ? 'tool' : 'human')
   await moved($)
@@ -703,6 +703,68 @@ async function submitIdea($: Engine, idea: string, e: Any) {
     text: `Start a new BOB project for this idea, in my words: "${text}". Choose the project name yourself and call start_project; do not ask me to type a command.`,
     asUser: true,
   })
+}
+
+// R-bob-13: the design room's six stages, read from the files each stage
+// writes (skills/design-with-bob/SKILL.md, "Files this skill writes").
+const STAGES = ['Capture', 'Understand', 'Design the product', 'Data and knowledge', 'Make it visible', 'Challenge and approve']
+const REVIEWS = [
+  { key: 'journey', label: 'journey' },
+  { key: 'screen-map', label: 'screens' },
+  { key: 'data-trace', label: 'data trace' },
+  { key: 'readiness', label: 'readiness check' },
+]
+type Design = { done: boolean[]; who: string | null; job: string | null; reviews: { key: string; label: string }[]; proposal: boolean }
+
+const firstLineUnder = (md: string, heading: string): string | null => {
+  const at = md.split('\n').findIndex(l => l.trim().toLowerCase() === `## ${heading.toLowerCase()}`)
+  if (at < 0) return null
+  const line = md.split('\n').slice(at + 1).find(l => l.trim() && !l.startsWith('#'))
+  return line ? line.trim() : null
+}
+
+// null when the project is governed or the design room has not started.
+async function designOf($: Engine, m: Model): Promise<Design | null> {
+  if (m.governed) return null
+  const has = (p: string) => exists($, at(m.root, p))
+  const brief = (await readText($, at(m.root, 'bob/brief.md'))) ?? ''
+  const sources = await has('bob/sources.json')
+  const proposal = await has(PROPOSAL_PATH)
+  if (!sources && !brief && !proposal) return null
+  const page = (k: string) => has(`docs/evidence/design/${k}.md`)
+  const done = [
+    sources,
+    /^## Conflicts\s*$/m.test(brief),
+    /\bR-[A-Za-z0-9-]+-\d+\b/.test(brief),
+    await page('data-trace'),
+    (await page('journey')) && (await page('screen-map')),
+    proposal,
+  ]
+  const reviews: Design['reviews'] = []
+  for (const r of REVIEWS) if (await page(r.key)) reviews.push(r)
+  return { done, who: firstLineUnder(brief, 'Who'), job: firstLineUnder(brief, 'Job'), reviews, proposal }
+}
+
+async function openReview($: Engine, key: string, project: string, e: Any) {
+  if (await personRefused($, 'Open a review page', e)) return
+  await $.prompt.submit({ text: `Open docs/evidence/design/${key}.md for ${project} and walk me through it in plain words.`, asUser: true })
+}
+
+async function pressAdopt($: Engine, e: Any) {
+  if (await personRefused($, 'Adopt', e)) return
+  const text = await adopt($)
+  await update($, noteAtom, () => text.split('\n')[0])
+  await resetRound($)
+  await writePage($)
+  redraw($)
+}
+
+async function pressReconcile($: Engine, e: Any) {
+  if (await personRefused($, 'Close stale run', e)) return
+  const text = await reconcile($)
+  await update($, noteAtom, () => text.split('\n')[0])
+  await writePage($)
+  redraw($)
 }
 
 // A file:// link is drawn as plain text on the desktop app, so See evidence
@@ -1061,6 +1123,10 @@ export const register: Register = on => {
     // Every increment waiting for a person, while none is active or the active one is fully verified (R-bob-15).
     const waiting: Any[] = tracked && (!active || activeDone) ? ((m.ledger.increments ?? []) as Any[]).filter(i => ['proposed', 'approved'].includes(i.state)) : []
     const others: Any[] = m.place.workspace ? ((m.place.workspace.projects ?? []) as Any[]).filter(p => p.name !== m.place.project) : []
+    const design = await designOf($, m)
+    const current = design ? design.done.findIndex(d => !d) : -1
+    const gateA = active ? approvalVerdict(m) : null
+    const staleRun = !!b.stale && b.stale.startsWith('stale, reconciling')
     const chips = (ids: string[]) => (
       <Box flexDirection="row" gap={1} flexWrap="wrap">
         {ids.map(rid => (
@@ -1093,6 +1159,11 @@ export const register: Register = on => {
           <Box flexDirection="column" borderStyle="round" paddingX={1}>
             <Text weight="semibold">{`Round: ${active.id}: ${String(active.title ?? '')}`}</Text>
             {chips((active.requirement_ids ?? []) as string[])}
+            {gateA && !gateA.ok ? (
+              <Button key={`reapprove-${active.id}`} variant="primary" onPress={press => pressApprove($, String(active.id), press)}>
+                {`Approve ${active.id} against the current brief`}
+              </Button>
+            ) : null}
             <Box flexDirection="row" gap={2}>
               {turnId ? (
                 <Button key="pause" onPress={press => pressPause($, press)}>
@@ -1103,6 +1174,34 @@ export const register: Register = on => {
                 See evidence
               </Button>
             </Box>
+          </Box>
+        ) : null}
+
+        {design ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1}>
+            <Text weight="semibold">{`Designing ${m.place.project ?? 'this project'}`}</Text>
+            {STAGES.map((name, i) => (
+              <Text key={`stage-${i}`} color={design.done[i] ? 'success' : i === current ? 'suggestion' : 'inactive'}>
+                {`${design.done[i] ? '✓' : i === current ? '▶' : '·'} ${name}`}
+              </Text>
+            ))}
+            {design.who || design.job ? <Text weight="semibold">Brief so far</Text> : null}
+            {design.who ? <Text>{`Who: ${design.who}`}</Text> : null}
+            {design.job ? <Text>{`Job: ${design.job}`}</Text> : null}
+            {design.reviews.length ? (
+              <Box flexDirection="row" gap={1} flexWrap="wrap">
+                {design.reviews.map(r => (
+                  <Button key={`review-${r.key}`} onPress={press => openReview($, r.key, String(m.place.project ?? 'this project'), press)}>
+                    {`See ${r.label}`}
+                  </Button>
+                ))}
+              </Box>
+            ) : null}
+            {design.proposal ? (
+              <Button key="adopt" variant="primary" onPress={press => pressAdopt($, press)}>
+                Adopt this project
+              </Button>
+            ) : null}
           </Box>
         ) : null}
 
@@ -1133,6 +1232,11 @@ export const register: Register = on => {
             <Text color="warning">{`Gate B: the last round left ${pending.ids.join(', ')} unproven; only evidence may be written until it lands`}</Text>
           ) : null}
           {b.stale ? <Text color="warning">{b.stale}</Text> : <Text dimColor>ledger: current</Text>}
+          {staleRun ? (
+            <Button key="reconcile" onPress={press => pressReconcile($, press)}>
+              Close stale run
+            </Button>
+          ) : null}
           {b.preflight ? (
             b.preflight.stops.length ? (
               <Text color="error">Preflight STOP: {b.preflight.stops.join(' · ')}</Text>
