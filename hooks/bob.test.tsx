@@ -1370,3 +1370,80 @@ test('R-bob-14: no next action BOB shows asks a person to type a /bob command', 
   for (const t of texts) expect(t).not.toContain('/bob')
   expect(texts.length).toBe(5)
 })
+
+// ---------------------------------------------------------------------------
+// R-bob-16, the idle-repo rule (27 October 2026). A governed repo with no
+// increment proposed, approved or active is idle: no round is open, so Gate A
+// allows writes and Gate B has no round to hold. AquaAgent froze this way with
+// INC-00 and INC-01 both done. A proposed or approved increment, a state the
+// schema does not name, a brief changed after approval and a file that does not
+// parse all still refuse (fail closed, unchanged).
+// ---------------------------------------------------------------------------
+
+const idleLedger = (states: string[] = ['done', 'returned']) => ({
+  ...LEDGER,
+  increments: LEDGER.increments.map((i, n) => ({ ...i, state: states[n] ?? 'done' })),
+})
+
+test('R-bob-16: an idle governed repo (every increment done or returned, or none at all) allows an Edit, a Write and a file-writing Bash with no approval, and the round ends free', async ($, on) => {
+  const w = await approvedWorld(on, { approvals: [], ledger: idleLedger() })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const ledger of [idleLedger(), { ...LEDGER, increments: [] }]) {
+    w.ledger = ledger
+    expect(said(await $.tool.call({ tool: 'Edit', file_path: '/repo/src/a.ts', old_string: 'a', new_string: 'b' }))).toBe('')
+    expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+    expect(said(await $.tool.call({ tool: 'Bash', command: 'echo hi > /repo/out.txt' }))).toBe('')
+  }
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('R-bob-16: a proposed or approved increment still refuses every write, and so does an increment state the schema does not name', async ($, on) => {
+  const w = await approvedWorld(on, { approvals: [], ledger: idleLedger(['done', 'proposed']) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const state of ['proposed', 'approved', 'paused']) {
+    w.ledger = idleLedger(['done', state])
+    expect(said(await $.tool.call({ tool: 'Edit', file_path: '/repo/src/a.ts', old_string: 'a', new_string: 'b' }))).toContain('Gate A')
+    expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('Gate A')
+    expect(said(await $.tool.call({ tool: 'Bash', command: 'echo hi > /repo/out.txt' }))).toContain('Gate A')
+  }
+  w.ledger = idleLedger(['done', 'proposed'])
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('Approve INC-T-2')
+})
+
+test('R-bob-16: idle never opens a ledger that does not parse, and an active increment whose brief changed after approval still refuses', async ($, on) => {
+  const w = await approvedWorld(on, { approvals: [], ledger: idleLedger(), files: { 'bob/ledger.json': '{ "increments": [ ' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('Gate A')
+
+  delete w.files!['bob/ledger.json']
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+
+  w.ledger = LEDGER
+  w.approvals = [{ id: 'AP-T-2', brief_hash: await sha256('an older brief'), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }]
+  const out = said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))
+  expect(out).toContain('Gate A')
+  expect(out).toContain('changed')
+})
+
+test('R-bob-16: the pane, /bob status and the board page say "idle: no round started" instead of a blocker, and the next action asks no one to type', async ($, on) => {
+  const w = await approvedWorld(on, { approvals: [], ledger: idleLedger() })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /^Increment:/ }))?.text).toBe('Increment: idle: no round started')
+    // The brief's own blocked requirement (R-T-05) is still a blocker; the missing round is not.
+    expect((await ui.find({ type: 'Text', text: /^Blocker:/ }))?.text).toBe('Blocker: R-T-05 blocked')
+    const next = String((await ui.find({ type: 'Text', text: /Next action/ }))?.text ?? '')
+    expect(next).toMatch(/^Next action: Claude: /)
+    expect(next).not.toContain('/bob')
+    expect(await ui.find({ key: approveKey('INC-T-1') })).toBe(undefined)
+    expect(await ui.find({ key: approveKey('INC-T-2') })).toBe(undefined)
+    await ui.unmount()
+  }
+  const status = await $.command.run({ command: 'bob', args: 'status' })
+  expect(status.text).toContain('idle: no round started')
+  expect(status.text).not.toContain('has state active')
+  const html = statusPage(w).slice(-1)[0].text
+  expect(html).toContain('idle: no round started')
+  expect(html).not.toContain('has state active')
+})
