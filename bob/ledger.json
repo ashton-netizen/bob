@@ -512,6 +512,17 @@
       "created_at": "2026-10-27T22:28:00+11:00",
       "source": "tool",
       "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-17",
+      "requirement_id": "R-bob-16",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-5/B5-idle-gate-aquaagent-records.txt",
+      "captured_at": "2026-10-27T22:30:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-27T22:30:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
     }
   ]
 }
