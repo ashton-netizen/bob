@@ -215,6 +215,18 @@
       "created_at": "2026-10-26T09:45:00+11:00",
       "source": "ai",
       "is_synthetic": false
+    },
+    {
+      "id": "R-bob-16",
+      "priority": "MUST",
+      "text": "a governed repo with no increment proposed, approved or active is idle: Gate A allows writes and the pane says idle: no round started instead of a blocker; Gate A still refuses when an increment is proposed or approved but not active, when the brief changed after approval, and on any parse error",
+      "check": "plugin test: an idle repo allows an Edit, a Write and a file-writing Bash; a proposed or approved increment refuses; a hash mismatch and a parse error refuse; red on 0.8.0 and on a planted over-wide rule, green after. Then live: a session on a repo whose every increment is done edits with no approval, and is refused once an increment is proposed",
+      "state": "implemented",
+      "evidence_ids": ["E-BOB-15", "E-BOB-16", "E-BOB-17"],
+      "source_ids": ["S-07"],
+      "created_at": "2026-10-27T22:35:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
     }
   ],
   "decisions": [
