@@ -1,0 +1,26 @@
+# Build 5 (R-bob-16): Gate A's own verdict on AquaAgent's real records, 2026-10-27 22:30 +1100, node v26.0.0
+# Records: bob/brief.json, ledger.json, approvals.json from AquaAgent commit 4bc158f (branch inc-01-close, pull request 148), copied to a scratch folder.
+# now = as committed (INC-02 active under AP-03). frozen = INC-02 taken out, the state the kickoff describes (INC-00 and INC-01 done, nothing proposed). proposed = INC-02 back to proposed, no approval.
+# The code is hooks/board.ts approvalVerdict, the function Gate A calls on every Edit, Write and file-writing Bash. Not a live session: both engines on this Mac report an expired sign-in for headless runs.
+
+== 0.8.0 hooks/board.ts (a94ae08~1)
+now:
+  Gate A: ALLOWS writes · INC-02 approved by AP-03
+  Board:  Increment: INC-02 · AquaAgent intro rebuild: short welcome with read aloud, sound check in the middle with text size, shorter opening (R-AQ-01) · active | Blocker: none | Next action: Claude: capture evidence for R-AQ-01
+frozen:
+  Gate A: REFUSES writes · no increment in bob/ledger.json has state active
+  Board:  Increment: none active | Blocker: no increment in bob/ledger.json has state active | Next action: Ash needs to: approve an increment and set it active
+proposed:
+  Gate A: REFUSES writes · no increment in bob/ledger.json has state active
+  Board:  Increment: none active | Blocker: no increment in bob/ledger.json has state active | Next action: Ash needs to: approve an increment and set it active
+
+== 0.9.0 hooks/board.ts (a94ae08)
+now:
+  Gate A: ALLOWS writes · INC-02 approved by AP-03
+  Board:  Increment: INC-02 · AquaAgent intro rebuild: short welcome with read aloud, sound check in the middle with text size, shorter opening (R-AQ-01) · active | Blocker: none | Next action: Claude: capture evidence for R-AQ-01
+frozen:
+  Gate A: ALLOWS writes · none needed: idle: no round started
+  Board:  Increment: idle: no round started | Blocker: none | Next action: Claude: propose the next round before new build work; BOB is idle, so edits are allowed until then
+proposed:
+  Gate A: REFUSES writes · no increment in bob/ledger.json has state active
+  Board:  Increment: none active | Blocker: no increment in bob/ledger.json has state active | Next action: Ash needs to: approve an increment and set it active

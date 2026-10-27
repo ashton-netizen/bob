@@ -75,10 +75,18 @@ export const activeIncrement = (m: Model): Any | undefined => (m.ledger?.increme
 export const evidenceFor = (m: Model, ids: string[]): Any[] =>
   ((m.ledger?.evidence ?? []) as Any[]).filter(ev => ids.includes(ev.requirement_id))
 
+// R-bob-16: a governed repo whose every increment is done or returned (or that
+// has none) is idle: no round is open, so there is nothing to approve. A
+// proposed or approved increment, or a state the schema does not name, is not
+// idle, so Gate A still refuses (fail closed).
+export const IDLE = 'idle: no round started'
+export const isIdle = (m: Model): boolean => ((m.ledger?.increments ?? []) as Any[]).every(i => ['done', 'returned'].includes(i.state))
+
 export type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: string }
 
 // Gate A: deny unless an approval record has brief_hash == sha256(bob/brief.json)
-// and the active increment in scope_increment_ids (bob/schema.json, gates.A_approval).
+// and the active increment in scope_increment_ids, or the repo is idle
+// (bob/schema.json, gates.A_approval).
 export function approvalVerdict(m: Model): Verdict {
   if (m.place.workspaceError) return { ok: false, reason: m.place.workspaceError, next: WORKSPACE_REPAIR }
   if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
@@ -87,6 +95,7 @@ export function approvalVerdict(m: Model): Verdict {
   if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to: ask Claude to design and adopt this project (the BOB pane offers Adopt once the proposal exists), or restore the files from git' }
   const active = activeIncrement(m)
   if (!active) {
+    if (isIdle(m)) return { ok: true, note: `none needed: ${IDLE}` }
     const proposed = ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
     return {
       ok: false,
@@ -159,6 +168,8 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
   if (m.place.workspaceError) next = WORKSPACE_REPAIR
   else if (m.place.workspace && !m.place.project) next = 'Ash needs to: describe your idea in the Start a project box in the BOB pane, or just tell Claude about it'
   else if (fresh) next = `Ash needs to: tell Claude about ${m.place.project}; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved`
+  const idle = !!m.governed && !!m.ledger && verdict?.ok === true && isIdle(m)
+  if (idle) next = 'Claude: propose the next round before new build work; BOB is idle, so edits are allowed until then'
   if (active) {
     const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
     const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
@@ -190,7 +201,7 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
     project: m.place.workspace && !m.place.project ? 'none yet' : `${m.place.project} · ${m.root}`,
     workspace: m.place.workspace ? `${m.place.session} · ${projects.length ? projects.join(', ') : 'no projects yet'}` : null,
     source: m.ownLedger ? m.ledgerPath : m.fixtures ? `${m.ledgerPath} (synthetic)` : 'no ledger yet',
-    increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : 'none active',
+    increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : idle ? IDLE : 'none active',
     approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? `${active.approval_id ?? 'none'} (fixture, not checked)` : 'none',
     task: started ? String(started.detail ?? '') : 'none recorded',
     blocker,

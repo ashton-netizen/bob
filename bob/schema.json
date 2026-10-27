@@ -221,7 +221,7 @@
     "rule": "a connector or unsupported format never shows as ingested merely because a file was attached"
   },
   "gates": {
-    "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) (or scope_hash == the brief's scope hash, see approval.scope_hash) and the active increment in scope_increment_ids; a Bash write to bob/brief.json is refused outright because the state guard sees Edit and Write only",
+    "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) (or scope_hash == the brief's scope hash, see approval.scope_hash) and the active increment in scope_increment_ids; a governed repo whose every increment is done or returned (or that has none) is idle and Gate A allows writes (R-bob-16, 0.9.0), while a proposed or approved increment, an unknown increment state, a brief changed after approval and any file that does not parse still refuse; a Bash write to bob/brief.json is refused outright because the state guard sees Edit and Write only",
     "B_evidence": "block the end of a turn when the active increment's requirement_ids gained no evidence record during this run",
     "preflight": "scripts/preflight.sh on SessionStart"
   },
