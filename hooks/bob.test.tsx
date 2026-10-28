@@ -21,7 +21,16 @@ const PANE = {
 const T = '2026-10-21T10:00:00+11:00'
 const base = (source: string) => ({ created_at: T, source, is_synthetic: true })
 
+// R-bob-17: the map template the double serves; the real one is templates/map.html.
+const MAP_TEMPLATE = '<img src="data:image/png;base64,{{CHAR}}"><img src="data:image/png;base64,{{DARK}}"><img src="data:image/png;base64,{{LIGHT}}"><script>window.BOB_MAP = {{DATA}};</script>'
+
 const SCHEMA = {
+  map: {
+    branches: [
+      { id: 'reg', name: 'Registering', blurb: 'who is in', items: [{ id: 'R-T-01', label: 'Register people' }, { id: 'R-T-02', label: 'De-duplicate' }] },
+      { id: 'bank', name: 'Banking', blurb: 'the bank', items: [{ id: 'R-T-03', label: 'The question bank' }] },
+    ],
+  },
   record_base: { required: ['id', 'created_at', 'source', 'is_synthetic'], source_values: ['human', 'ai', 'tool'] },
   requirement: {
     states: ['not_assessed', 'blocked', 'designed', 'implemented', 'reported', 'verified', 'accepted'],
@@ -113,6 +122,8 @@ type World = {
   // docs/status.html writes: a view of the records, filed apart so the
   // record-counting tests above stay exact.
   pages?: { path: string; text: string }[]
+  // docs/map.html writes (R-bob-17), filed apart for the same reason.
+  maps?: { path: string; text: string }[]
   // What `git config user.name` answers.
   userName?: string
   // Every $.process.run the module made, in order.
@@ -156,6 +167,7 @@ function world(on: any, w: World) {
   w.files = w.files ?? {}
   w.writes = w.writes ?? []
   w.pages = w.pages ?? []
+  w.maps = w.maps ?? []
   w.runs = w.runs ?? []
   const governed = () => w.governed || 'bob/brief.json' in w.files!
   const text = (path: string): string | undefined => {
@@ -168,6 +180,9 @@ function world(on: any, w: World) {
       if (path.endsWith('bob/schema.json') && path !== 'bob/schema.json') return JSON.stringify(SCHEMA)
       if (resolve(path).endsWith('/bob/ledger.json')) return JSON.stringify({ increments: [], runs: [], events: [], evidence: [], $comment: 'the plugin folder\'s own ledger, never the repo\'s' })
       if (path.endsWith('/templates/workspace/CLAUDE.md')) return '# BOB workspace (template)\n'
+      if (path.endsWith('/templates/map.html')) return MAP_TEMPLATE
+      const png = path.match(/\/assets\/bob\/web\/([a-z0-9-]+)\.png$/)
+      if (png) return `PNGDATA-${png[1]}`
       return undefined
     }
     if (r in w.files!) return w.files![r]
@@ -197,6 +212,10 @@ function world(on: any, w: World) {
     const r = rel(e.path) ?? resolve(e.path)
     if (r === 'docs/status.html') {
       w.pages!.push({ path: r, text: e.text })
+      return { value: undefined }
+    }
+    if (r === 'docs/map.html') {
+      w.maps!.push({ path: r, text: e.text })
       return { value: undefined }
     }
     w.writes!.push({ path: r, text: e.text })
@@ -1037,6 +1056,62 @@ test('docs/status.html is written from the ledger at session start and after eve
   expect(statusPage(w).length).toBe(2)
 })
 
+// ---------------------------------------------------------------------------
+// R-bob-17: docs/map.html, the project as a map generated from the records.
+// ---------------------------------------------------------------------------
+
+const mapData = (w: World) => {
+  const html = w.maps![w.maps!.length - 1].text
+  const json = html.match(/window\.BOB_MAP = (\{.*\});<\/script>/s)
+  return { html, data: JSON.parse(json![1]) as { project: string; proven: number; total: number; round: string; next: { doer: string; text: string }; branches: { id: string; name: string; items: { id: string; state: string; label: string; plain: string }[] }[] } }
+}
+const b64 = (s: string) => btoa(unescape(encodeURIComponent(s)))
+
+test('R-bob-17: docs/map.html has one dot per requirement, its colour read from the ledger, on the schema branches, with the rest on Other', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(w.maps!.length).toBe(1)
+  const { data } = mapData(w)
+  const dots = data.branches.flatMap(b => b.items)
+  expect(dots.map(d => d.id)).toEqual(['R-T-01', 'R-T-02', 'R-T-03', 'R-T-04', 'R-T-05'])
+  const state = (id: string) => dots.find(d => d.id === id)?.state
+  expect([state('R-T-01'), state('R-T-02'), state('R-T-03'), state('R-T-04'), state('R-T-05')]).toEqual(['proven', 'proven', 'built', 'built', 'todo'])
+  expect(data.branches.map(b => b.name)).toEqual(['Registering', 'Banking', 'Other'])
+  expect(data.branches[2].items.map(d => d.id)).toEqual(['R-T-04', 'R-T-05'])
+  expect(data.proven).toBe(2)
+  expect(data.total).toBe(5)
+  expect(data.next.doer).toBe('CLAUDE')
+  expect(data.next.text).toContain('capture evidence for R-T-04')
+})
+
+test('R-bob-17: a requirement the brief calls verified but with no evidence record is never drawn proven', async ($, on) => {
+  const ledger = { ...LEDGER, evidence: LEDGER.evidence.filter(e => e.id !== 'E-T-02') }
+  const w = await approvedWorld(on, { ledger })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  expect(data.branches.flatMap(b => b.items).find(d => d.id === 'R-T-02')?.state).toBe('built')
+  expect(data.proven).toBe(1)
+})
+
+test('R-bob-17: the approved character and lockups are embedded unchanged, and text from a brief cannot break out of the page script', async ($, on) => {
+  const hostile = { requirements: [req('R-T-01', '</script><img src=x onerror=alert(1)>', 'accepted', ['E-T-01'])] }
+  const w = await approvedWorld(on, { brief: hostile, approvals: [] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { html } = mapData(w)
+  expect(html).toContain(b64('PNGDATA-character-280'))
+  expect(html).toContain(b64('PNGDATA-lockup-dark-760'))
+  expect(html).toContain(b64('PNGDATA-lockup-light-760'))
+  expect(html).not.toContain('{{')
+  expect(html).not.toContain('</script><img')
+  expect(html.split('</script>').length).toBe(2)
+})
+
+test('R-bob-17: no map is written from fixtures: an ungoverned repo with no ledger of its own gets none', async ($, on) => {
+  const w = await approvedWorld(on, { governed: false })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(w.maps!.length).toBe(0)
+})
+
 test('docs/status.html is never written from fixtures: an ungoverned repo with no ledger of its own gets no page', async ($, on) => {
   const w = await approvedWorld(on, { governed: false })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -1223,6 +1298,16 @@ test('R-bob-12: while a round runs the pane offers Pause (it stops the running t
   expect(w.prompts!.length).toBe(1)
   expect(w.prompts![0]).toContain('INC-T-2')
   expect(w.prompts![0]).toContain('evidence')
+  await ui.unmount()
+})
+
+test('R-bob-17: the pane has an Open the map button that asks Claude to open docs/map.html, in a governed repo', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'open-map' })
+  expect(w.prompts!.length).toBe(1)
+  expect(w.prompts![0]).toContain('docs/map.html')
   await ui.unmount()
 })
 
