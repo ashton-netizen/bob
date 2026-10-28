@@ -633,6 +633,27 @@ test('R-bob-05: adopt after the design room, which already wrote bob/sources.jso
   expect(w.files!['bob/brief.json']).toBeDefined()
 })
 
+test('R-bob-05: adopt refuses a proposal with more than three increments, and one that leaves a requirement outside every increment (rounds are phases, 29 October 2026)', async ($, on) => {
+  const many = proposal() as any
+  for (let n = 2; n < 5; n++) many.ledger.increments.push({ id: `INC-0${n}`, title: `fix ${n}`, requirement_ids: ['R-P-02'], state: 'proposed', approval_id: null, ...real('ai') })
+  const w = await adoptWorld(on, many)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const tooMany = await adopt($)
+  expect(tooMany).toContain('refused')
+  expect(tooMany).toContain('at most 3')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('R-bob-05: adopt refuses a requirement that sits in no increment', async ($, on) => {
+  const left = proposal() as any
+  left.brief.requirements.push(areq('R-P-03', 'left out', 'not_assessed'))
+  const w = await adoptWorld(on, left)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('R-P-03 is in no increment')
+  expect(w.writes!.length).toBe(0)
+})
+
 test('R-bob-05: adopt refuses, writing nothing, when the proposal reuses an existing record id with different content', async ($, on) => {
   const clash = proposal()
   clash.ledger.increments[0].id = 'INC-T-1'

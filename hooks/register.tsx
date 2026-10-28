@@ -246,6 +246,12 @@ function proposalRefusals(schema: Any, p: Any): string[] {
     const reqIds = new Set(reqs.map(r => String(r.id)))
     for (const id of (inc.requirement_ids ?? []) as string[]) if (!reqIds.has(id)) out.push(`increment ${inc.id}: requirement ${id} is not in brief.requirements`)
   }
+  // Phase rounds (Ash, 29 October 2026): one approval per phase, never one per fix.
+  // INC-00 governs, then at most two phases; no promise is left outside a phase.
+  const proposed: Any[] = Array.isArray(ledger.increments) ? ledger.increments : []
+  if (proposed.length > 3) out.push(`the proposal has ${proposed.length} increments; BOB rounds are phases: INC-00 (govern), phase one (a working look) and phase two (the rest), so at most 3`)
+  const planned = new Set(proposed.flatMap(i => (i.requirement_ids ?? []) as string[]))
+  for (const r of reqs) if (!['verified', 'accepted'].includes(r.state) && !planned.has(String(r.id))) out.push(`requirement ${r.id} is in no increment; put it in phase one or phase two`)
   const runStates: string[] = schema?.run?.states ?? []
   for (const run of (Array.isArray(ledger.runs) ? ledger.runs : []) as Any[]) {
     out.push(...baseRefusals(schema, run, 'run'))
