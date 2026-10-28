@@ -122,6 +122,8 @@ type World = {
   // docs/status.html writes: a view of the records, filed apart so the
   // record-counting tests above stay exact.
   pages?: { path: string; text: string }[]
+  // The session transcript the Stop event points at (R-bob-01).
+  transcript?: string
   // docs/map.html writes (R-bob-17), filed apart for the same reason.
   maps?: { path: string; text: string }[]
   // What `git config user.name` answers.
@@ -181,6 +183,7 @@ function world(on: any, w: World) {
       if (resolve(path).endsWith('/bob/ledger.json')) return JSON.stringify({ increments: [], runs: [], events: [], evidence: [], $comment: 'the plugin folder\'s own ledger, never the repo\'s' })
       if (path.endsWith('/templates/workspace/CLAUDE.md')) return '# BOB workspace (template)\n'
       if (path.endsWith('/templates/map.html')) return MAP_TEMPLATE
+      if (path === '/tmp/t.jsonl') return w.transcript
       const png = path.match(/\/assets\/bob\/web\/([a-z0-9-]+)\.png$/)
       if (png) return `PNGDATA-${png[1]}`
       return undefined
@@ -416,6 +419,32 @@ test('Gate B ignores files outside the repo: a scratch write neither blocks the 
   expect((await $.classic.Stop(stopInput())).block ?? '').toContain('Gate B')
   await $.prompt.submit({ text: 'next round', asUser: true })
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/elsewhere/scratch.md', content: 'y' }))).toBe('')
+})
+
+const said1 = (text: string) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+
+test('R-bob-01: a round under an active increment cannot end on a closing report longer than three lines; the block names the shape, once', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.transcript = [said1('Built it.\n\nDetail here.\n\nStage: built.\nLive: not yet.\nNext: Claude merges.\nExtra: a fourth line.')].join('\n')
+  const blocked = await $.classic.Stop(stopInput())
+  expect(blocked.block ?? '').toContain('three lines')
+  expect(blocked.block ?? '').toContain('stage')
+  // One block per round.
+  expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
+  // A closing report of three lines passes.
+  w.transcript = [said1('Detail above.\n\nStage: built.\nLive: not yet.\nNext: Claude merges.')].join('\n')
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+  // An unreadable transcript never blocks.
+  w.transcript = 'not json'
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('R-bob-01: the report check idles in a repo BOB does not govern', async ($, on) => {
+  const w = await approvedWorld(on, { governed: false })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.transcript = said1('a\nb\nc\nd\ne')
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
 })
 
 test('Gate B lets a round that wrote nothing end', async ($, on) => {

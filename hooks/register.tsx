@@ -648,6 +648,25 @@ async function carryOver($: Engine) {
   await update($, pendingAtom, () => ({ increment: String(active.id), ids, files: wrote.length }))
 }
 
+// The text of the last assistant message in a Claude Code transcript (JSON lines),
+// or null when it cannot be read as one.
+function lastAssistantText(raw: string): string | null {
+  const lines = raw.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trim()) continue
+    try {
+      const o = JSON.parse(lines[i]) as Any
+      if (o.type !== 'assistant' && o.message?.role !== 'assistant') continue
+      const parts = (o.message?.content ?? []) as Any[]
+      const text = parts.filter(c => c?.type === 'text').map(c => String(c.text ?? '')).join('\n')
+      return text.trim() ? text : null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 // null when the write may go on; else the Gate B text. Evidence clears the hold.
 async function heldByGateB($: Engine, m: Model, isEvidence: boolean): Promise<string | null> {
   const p = await read($, pendingAtom)
@@ -1035,6 +1054,27 @@ async function bobCommand($: Engine, e: Any): Promise<{ text: string }> {
   return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
 }
 
+// R-bob-01: the closing report of a round under an active increment is at
+// most three lines (stage, live, next step with its doer), after any detail.
+// Blocks once per round; an unreadable transcript never blocks. null = allow.
+async function reportCheck($: Engine, e: Any): Promise<{ block: string } | null> {
+    if ((e as Any).stop_hook_active) return null
+    const m = await load($)
+    if (!m.governed || !m.ledger || !activeIncrement(m)) return null
+    const path = String((e as Any).transcript_path ?? '')
+    const raw = path ? await readText($, path) : null
+    const last = raw === null ? null : lastAssistantText(raw)
+    if (last === null) return null
+    const paragraphs = last.trim().split(/\n\s*\n/)
+    const lines = paragraphs[paragraphs.length - 1].split('\n').filter(l => l.trim()).length
+    if (lines <= 3) return null
+    return {
+      block:
+        `BOB report check: this round ended on a closing report of ${lines} lines. The closing report is at most three lines: stage, live, and the next step with its doer. ` +
+        `Next action: Claude: keep the detail above and end on those three lines.`,
+    }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, new <name> (a project in the BOB workspace), switch <name>, adopt this project from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
@@ -1144,11 +1184,11 @@ export const register: Register = on => {
   on('classic.Stop', async ($, e, next) => {
     await writePage($)
     const m = await load($)
-    if (!m.governed || !m.ledger) return next(e)
+    if (!m.governed || !m.ledger) return (await reportCheck($, e)) ?? next(e)
     const active = activeIncrement(m)
-    if (!active) return next(e)
+    if (!active) return (await reportCheck($, e)) ?? next(e)
     const wrote = await read($, touchedAtom)
-    if (wrote.length === 0) return next(e)
+    if (wrote.length === 0) return (await reportCheck($, e)) ?? next(e)
 
     const ids: string[] = active.requirement_ids ?? []
     const base = new Set(await read($, baselineAtom))
@@ -1157,7 +1197,7 @@ export const register: Register = on => {
       await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
       await update($, touchedAtom, () => [])
       redraw($)
-      return next(e)
+      return (await reportCheck($, e)) ?? next(e)
     }
 
     const kinds: string[] = m.schema?.evidence?.kinds ?? []
@@ -1169,7 +1209,7 @@ export const register: Register = on => {
 
     if (e.stop_hook_active) {
       $.ui.toast(`BOB: round left unproven for ${ids.join(', ')}`)
-      return next(e)
+      return (await reportCheck($, e)) ?? next(e)
     }
     return { block: message }
   })

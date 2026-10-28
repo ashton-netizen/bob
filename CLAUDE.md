@@ -19,6 +19,10 @@ A Claude Code plugin (pane, gates, slash commands, repo templates) that lets a S
 - Remote: GitHub repo `[pending]` · branch protection `[pending]` · required checks `[pending]` (gate.yml must be seen red once before it counts).
 - Preflight hook: `.claude/settings.json` → `scripts/preflight.sh` `[pending: first seen running]`.
 
+## Every session and every decision (R-bob-04, R-bob-02)
+- The first message of a session names `docs/status.html` and `docs/map.html`, with one line: how many promises are proven and the next step with its doer. Say it before asking anything.
+- Each decision for Ash is asked once, as one popup, in the window that will run the answer, and the ask names that window. Never ask the same thing again.
+
 ## House rules
 - Branch per build. The first commit is the only one straight to main. Everything after goes branch, pull request, merge.
 - One home per list, guard, schema and state table. A second copy is a defect.
