@@ -106,9 +106,11 @@
       },
       {
         "id": "INC-01",
-        "title": "the form and the sheet row",
+        "title": "phase one: the form, the sheet row and everything for a first working look",
         "requirement_ids": [
-          "R-roster-01"
+          "R-roster-01",
+          "R-roster-02",
+          "R-roster-03"
         ],
         "state": "proposed",
         "approval_id": null,

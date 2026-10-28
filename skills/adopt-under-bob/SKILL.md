@@ -51,7 +51,7 @@ Rules the command enforces, so draft to them:
 - Every record in every array carries `id`, `created_at`, `source` (human, ai or tool) and `is_synthetic: false`. A synthetic record is refused; `fixtures/` is its only home.
 - Requirements come from the repo's own plan and Definition of Done lines, ids `R-<repo>-00` onward. `R-<repo>-00` is "the repo is BOB-governed: bob/ files exist, main unchanged". Each has `priority`, `text`, `check`, `state`, `evidence_ids`, `source_ids`.
 - A state of `verified` or `accepted` needs an evidence record in `ledger.evidence` for that id with `kind` diff, test, artefact or screenshot and `ref` pointing at a file in that repo. Where the only backing is a sentence in a review, the state is `reported` and the record's `ref` is the review path. Otherwise `not_assessed`.
-- Increments: `INC-00` (the adopt itself, claims `R-<repo>-00`) and `INC-01` (the smallest real increment), both `proposed`, `approval_id` null.
+- Increments: `INC-00` (the adopt itself, claims `R-<repo>-00`) and `INC-01` (phase one, a working look) and at most an `INC-02` (phase two); rounds are phases, so Ash approves per phase, never per fix, both `proposed`, `approval_id` null.
 - Sources: one record per source the operator named, with `access` and `processing` set to what was observed (a source nobody opened is `queued` or `missing`, never `extracted`), plus `type`, `version`, `fingerprint`, `scope`, `knowledge_use`.
 - No `approvals`. The command writes `{"approvals": []}`; a proposal carrying an approval is refused.
 

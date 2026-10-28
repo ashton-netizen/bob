@@ -129,7 +129,11 @@ def main(folder: str, synthetic: bool = False) -> int:
                     if sid not in {s.get("id") for s in p.get("sources") or []}: out.append(f"requirement {r.get('id')}: source {sid} is not in proposal.sources")
             if not any(str(i).endswith("-00") for i in ids): out.append("no R-<slug>-00 (the project is BOB-governed) requirement")
             incs = ledger.get("increments") or []
-            if [i.get("id") for i in incs][:2] != ["INC-00", "INC-01"]: out.append("ledger.increments must start INC-00 (govern) then INC-01 (smallest increment)")
+            if [i.get("id") for i in incs][:2] != ["INC-00", "INC-01"]: out.append("ledger.increments must start INC-00 (govern) then INC-01 (phase one: a working look)")
+            if len(incs) > 3: out.append(f"{len(incs)} increments; rounds are phases: INC-00, phase one, phase two, so at most 3")
+            planned = {rid for i in incs for rid in (i.get("requirement_ids") or [])}
+            for r in (brief.get("requirements") or []):
+                if r.get("state") not in ("verified", "accepted") and r.get("id") not in planned: out.append(f"requirement {r.get('id')} is in no increment; put it in phase one or phase two")
             for i in incs:
                 base(i, "increment")
                 if i.get("state") != "proposed": out.append(f"increment {i.get('id')}: state must be proposed")
