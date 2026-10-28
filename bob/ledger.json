@@ -557,6 +557,17 @@
       "created_at": "2026-10-28T14:03:00+11:00",
       "source": "tool",
       "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-20",
+      "requirement_id": "R-bob-17",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-6/B6-map-ash-yes.txt",
+      "captured_at": "2026-10-28T18:40:00+11:00",
+      "origin": "human",
+      "created_at": "2026-10-28T18:40:00+11:00",
+      "source": "human",
+      "is_synthetic": false
     }
   ]
 }
