@@ -105,7 +105,7 @@ export function approvalVerdict(m: Model): Verdict {
   }
   const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
   const match = inScope.find(a => a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash))
-  if (match) return { ok: true, note: `${active.id} approved by ${match.id}` }
+  if (match) return { ok: true, note: `${active.id} approved by ${match.id} (${String(match.approver ?? 'unknown')}, ${String(match.approved_at ?? 'unknown time')})` }
   if (inScope.length) {
     const ids = inScope.map(a => a.id).join(', ')
     return {

@@ -112,6 +112,20 @@
       "created_at": "2026-10-28T14:20:00+11:00",
       "source": "tool",
       "is_synthetic": false
+    },
+    {
+      "id": "S-09",
+      "name": "../docs/evidence/build-7/gate-b-diagnosis.md",
+      "type": "markdown",
+      "version": "v1, 28 October 2026, after Ash's \"Use BOB itself as the example. Just get it done\"",
+      "fingerprint": "2de21d8dd763018c3b6c69a8b3f67d02cd57a17b3ad44d2cfcb1e64f86171954",
+      "scope": "project",
+      "access": "available",
+      "processing": "extracted",
+      "knowledge_use": "proposed",
+      "created_at": "2026-10-28T19:55:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
     }
   ]
 }

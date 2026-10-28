@@ -568,12 +568,38 @@ test('adopt refuses a source without access and processing from bob/schema.json'
   expect(w.writes!.length).toBe(0)
 })
 
-test('adopt refuses when a bob/ file already exists', async ($, on) => {
-  const w = await adoptWorld(on, proposal(), { 'bob/ledger.json': JSON.stringify(LEDGER) })
+test('adopt refuses a repo that already holds bob/brief.json: it is governed already', async ($, on) => {
+  const w = await adoptWorld(on, proposal(), { 'bob/brief.json': JSON.stringify(BRIEF) })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   const out = await adopt($)
   expect(out).toContain('refused')
-  expect(out).toContain('bob/ledger.json')
+  expect(out).toContain('bob/brief.json')
+  expect(w.writes!.length).toBe(0)
+})
+
+test('R-bob-05: adopt on a repo that already holds bob/ledger.json merges the proposal in and leaves every existing record byte-identical', async ($, on) => {
+  const w = await adoptWorld(on, proposal(), { 'bob/ledger.json': JSON.stringify(LEDGER) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('wrote')
+  const merged = JSON.parse(w.files!['bob/ledger.json']) as Record<string, any[]>
+  for (const key of ['increments', 'runs', 'events', 'evidence']) {
+    const before = (LEDGER as Record<string, any[]>)[key]
+    expect(merged[key].slice(0, before.length).map(r => JSON.stringify(r))).toEqual(before.map(r => JSON.stringify(r)))
+  }
+  expect(merged.increments.map((i: any) => i.id)).toEqual(['INC-T-1', 'INC-T-2', 'INC-00', 'INC-01'])
+  expect(merged.evidence.map((e: any) => e.id)).toContain('E-P-01')
+  expect(JSON.parse(w.files!['bob/brief.json']).requirements.length).toBe(3)
+})
+
+test('R-bob-05: adopt refuses, writing nothing, when the proposal reuses an existing record id with different content', async ($, on) => {
+  const clash = proposal()
+  clash.ledger.increments[0].id = 'INC-T-1'
+  const w = await adoptWorld(on, clash, { 'bob/ledger.json': JSON.stringify(LEDGER) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('refused')
+  expect(out).toContain('INC-T-1')
   expect(w.writes!.length).toBe(0)
 })
 
@@ -1112,6 +1138,18 @@ test('R-bob-17: no map is written from fixtures: an ungoverned repo with no ledg
   expect(w.maps!.length).toBe(0)
 })
 
+test('R-bob-06: the board page and /bob status show who approved and when, by the AP record, in the same turn as the approval', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const html = statusPage(w)[0].text
+  expect(html).toContain('AP-T-2')
+  expect(html).toContain('Mags (fixture)')
+  expect(html).toContain('2026-10-21T10:00:00')
+  const status = String(((await $.command.run({ command: 'bob', args: '' })) as any).text ?? '')
+  expect(status).toContain('AP-T-2')
+  expect(status).toContain('Mags (fixture)')
+})
+
 test('docs/status.html is never written from fixtures: an ungoverned repo with no ledger of its own gets no page', async ($, on) => {
   const w = await approvedWorld(on, { governed: false })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -1309,6 +1347,27 @@ test('R-bob-17: the pane has an Open the map button that asks Claude to open doc
   expect(w.prompts!.length).toBe(1)
   expect(w.prompts![0]).toContain('docs/map.html')
   await ui.unmount()
+})
+
+test('R-bob-18: a round that gained evidence is never carried over or blocked as unproven, even when it wrote source files after the evidence landed', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start({ text: 'round 1', turnId: 't1' })
+  await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' })
+  await $.turn.start({ text: 'round 2', turnId: 't2' })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/other.ts`, content: 'y' }))).toContain('Gate B')
+
+  // Evidence lands in round 2; a write after it clears the hold and goes through.
+  const ledger = LEDGER as { evidence: unknown[] }
+  w.ledger = { ...LEDGER, evidence: [...ledger.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T11:00:00+11:00')] }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/other.ts`, content: 'y' }))).toBe('')
+
+  // Round 2 ends: it gained evidence, so Gate B lets it end.
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+  // And with no Stop at all (another plugin answered first), round 3 is not held either.
+  await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/third.ts`, content: 'z' })
+  await $.turn.start({ text: 'round 3', turnId: 't3' })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/fourth.ts`, content: 'w' }))).toBe('')
 })
 
 test('R-bob-11: Project home lists the other projects as buttons that switch in one click, and an idea box hands the idea to Claude', async ($, on) => {

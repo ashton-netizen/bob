@@ -1,0 +1,8 @@
+Plugin tests on engine 2.1.308, 28 October 2026, INC-06 (R-bob-18, R-bob-06, R-bob-05). Red first: R-bob-18 failed with the false Gate B block (Received: 'BOB Gate B: this round changed 1 file(s) ... gained no evidence'); R-bob-06 failed (APPROVAL read 'INC-T-2 approved by AP-T-2', no approver or time); the two R-bob-05 tests failed (adopt refused any existing bob/ file). Green after the fixes:
+(pass) adopt refuses a repo that already holds bob/brief.json: it is governed already [21.27ms]
+(pass) R-bob-05: adopt on a repo that already holds bob/ledger.json merges the proposal in and leaves every existing record byte-identical [22.24ms]
+(pass) R-bob-05: adopt refuses, writing nothing, when the proposal reuses an existing record id with different content [18.84ms]
+(pass) R-bob-06: the board page and /bob status show who approved and when, by the AP record, in the same turn as the approval [22.28ms]
+(pass) R-bob-18: a round that gained evidence is never carried over or blocked as unproven, even when it wrote source files after the evidence landed [22.91ms]
+ 79 pass
+ 0 fail
