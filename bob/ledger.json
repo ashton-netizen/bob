@@ -568,6 +568,17 @@
       "created_at": "2026-10-28T18:40:00+11:00",
       "source": "human",
       "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-21",
+      "requirement_id": "R-bob-17",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-6/B6-release-0.10.0.txt",
+      "captured_at": "2026-10-28T19:00:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T19:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
     }
   ]
 }
