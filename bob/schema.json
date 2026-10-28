@@ -237,7 +237,8 @@
       { "id": "rounds", "name": "Locked rounds", "blurb": "Small rounds. No edits without approval. No round ends without proof.", "items": [
         { "id": "R-bob-00", "label": "BOB is governed by BOB" },
         { "id": "R-bob-10", "label": "A round cannot end unproven" },
-        { "id": "R-bob-16", "label": "An idle repo does not freeze" } ] },
+        { "id": "R-bob-16", "label": "An idle repo does not freeze" },
+        { "id": "R-bob-18", "label": "A proven round is never held as unproven" } ] },
       { "id": "report", "name": "Report back", "blurb": "Short, plain and the same every time.", "items": [
         { "id": "R-bob-01", "label": "Three-line report each round" },
         { "id": "R-bob-02", "label": "Each decision asked once" },
