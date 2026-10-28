@@ -1,0 +1,7 @@
+R-bob-17 release evidence, read back 28 October 2026 (git ls-remote --tags origin, and gh pr view for 39, 40, 41):
+b5b577f2fef36dfcb2a28194168e44468bf05c41	refs/tags/bob--v0.10.0
+6c4a3a55617f6a9e281f1cc918b7d15533c71d50	refs/tags/bob--v0.10.0^{}
+PR 39 MERGED 2026-10-28T07:29:05Z
+PR 40 MERGED 2026-10-28T07:30:39Z
+PR 41 MERGED 2026-10-28T07:32:21Z
+Installed: bob@bob 0.10.0 at project scope in /Users/ash/BOB (installed_plugins.json read back).
