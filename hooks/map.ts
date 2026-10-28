@@ -84,3 +84,25 @@ export const renderMap = (template: string, assets: MapAssets, data: MapData): s
     .split('{{CHAR}}').join(assets.character)
     .split('{{DARK}}').join(assets.dark)
     .split('{{LIGHT}}').join(assets.light)
+
+// R-bob-17: a project still being designed has no ledger yet, so its map is the
+// six design stages: a lit dot (built, never proven) for each stage whose file
+// exists, nothing drawn proven, and the next step with its doer.
+export function designMapData(project: string, stages: string[], done: boolean[], generatedAt: string): MapData {
+  const items: Dot[] = stages.map((name, i) => ({
+    id: `stage-${i + 1}`,
+    state: done[i] ? 'built' : 'todo',
+    label: name,
+    plain: `${done[i] ? 'Done: the stage\u2019s file is on disk, not yet proven by evidence.' : 'Not started.'} Design stage ${i + 1} of ${stages.length}.`,
+  }))
+  const current = done.findIndex(d => !d)
+  return {
+    project,
+    generatedAt,
+    round: 'designing',
+    next: current === -1 ? { doer: 'ASH NEEDS TO', text: 'press Adopt this project in the BOB pane, so the build can be approved' } : { doer: 'CLAUDE', text: `finish the design stage \u201c${stages[current]}\u201d` },
+    proven: 0,
+    total: items.length,
+    branches: [{ id: 'design', name: 'Design stages', blurb: 'Six stages from your words to an approved design.', items }],
+  }
+}

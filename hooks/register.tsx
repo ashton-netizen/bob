@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
-import { buildMapData, renderMap } from './map'
-import { STALE_MS, activeIncrement, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
+import { buildMapData, designMapData, renderMap, type MapData } from './map'
+import { STALE_MS, activeIncrement, canonical, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
 
@@ -133,7 +133,11 @@ async function load($: Engine): Promise<Model> {
 async function writePage($: Engine) {
   try {
     const m = await load($)
-    if (!m.ownLedger) return
+    if (!m.ownLedger) {
+      const d = await designOf($, m)
+      if (d) await writeMap($, m, null, designMapData(String(m.place?.project ?? 'this project'), STAGES, d.done, new Date().toISOString()))
+      return
+    }
     const b = describe(m, await read($, preflightAtom), Date.now())
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
     await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
@@ -146,13 +150,13 @@ async function writePage($: Engine) {
 // R-bob-17: docs/map.html, the project as a map. The template and the approved
 // character and lockups ship with the plugin (templates/map.html,
 // assets/bob/web/); the dots come from the records and nothing else.
-async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe>) {
+async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | null, data?: MapData) {
   try {
     const template = await readText($, `${$.plugin.root}/templates/map.html`)
     if (template === null) return
     const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
     const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
-    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, buildMapData(m, b, new Date().toISOString())))
+    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString())))
   } catch {
     // a missing asset never blocks a session; the board page is still written
   }
@@ -320,12 +324,12 @@ async function adopt($: Engine): Promise<string> {
   // proposal's records after them. A reused id with different content refuses.
   const clashes: string[] = []
   const mergeList = (kind: string, prior: Any[], added: Any[]): Any[] => {
-    const byId = new Map(prior.map(r => [String(r.id), JSON.stringify(r)]))
+    const byId = new Map(prior.map(r => [String(r.id), canonical(r)]))
     const fresh: Any[] = []
     for (const r of added) {
       const seen = byId.get(String(r.id))
       if (seen === undefined) fresh.push(r)
-      else if (seen !== JSON.stringify(r)) clashes.push(`${kind} ${r.id} already exists with different content`)
+      else if (seen !== canonical(r)) clashes.push(`${kind} ${r.id} already exists with different content`)
     }
     return [...prior, ...fresh]
   }

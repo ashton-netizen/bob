@@ -217,7 +217,7 @@ function world(on: any, w: World) {
       w.pages!.push({ path: r, text: e.text })
       return { value: undefined }
     }
-    if (r === 'docs/map.html') {
+    if (r === 'docs/map.html' || r.endsWith('/docs/map.html')) {
       w.maps!.push({ path: r, text: e.text })
       return { value: undefined }
     }
@@ -619,6 +619,18 @@ test('R-bob-05: adopt on a repo that already holds bob/ledger.json merges the pr
   expect(merged.increments.map((i: any) => i.id)).toEqual(['INC-T-1', 'INC-T-2', 'INC-00', 'INC-01'])
   expect(merged.evidence.map((e: any) => e.id)).toContain('E-P-01')
   expect(JSON.parse(w.files!['bob/brief.json']).requirements.length).toBe(3)
+})
+
+test('R-bob-05: adopt after the design room, which already wrote bob/sources.json in another key order, merges the same sources instead of refusing (the live Adopt press that did nothing, 28 October 2026)', async ($, on) => {
+  const prop = proposal()
+  const reordered = prop.sources.map(s => Object.fromEntries(Object.entries(s).reverse()))
+  const w = await adoptWorld(on, prop, { 'bob/sources.json': JSON.stringify({ sources: reordered }) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  expect(out).toContain('wrote')
+  expect(out).not.toContain('BOB adopt refused')
+  expect(JSON.parse(w.files!['bob/sources.json']).sources.length).toBe(1)
+  expect(w.files!['bob/brief.json']).toBeDefined()
 })
 
 test('R-bob-05: adopt refuses, writing nothing, when the proposal reuses an existing record id with different content', async ($, on) => {
@@ -1366,6 +1378,26 @@ test('R-bob-12: while a round runs the pane offers Pause (it stops the running t
   expect(w.prompts![0]).toContain('INC-T-2')
   expect(w.prompts![0]).toContain('evidence')
   await ui.unmount()
+})
+
+test('R-bob-17: a project still being designed gets a map of its six stages, a lit dot per finished stage, nothing drawn proven, and Adopt named as the next step once all six are done', async ($, on) => {
+  const w = await workspaceWorld(on, designedTo(3))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  const dots = data.branches.flatMap(b => b.items)
+  expect(dots.length).toBe(6)
+  expect(dots.map(d => d.state)).toEqual(['built', 'built', 'built', 'todo', 'todo', 'todo'])
+  expect(data.proven).toBe(0)
+  expect(data.next.text).toContain('Data and knowledge')
+})
+
+test('R-bob-17: when all six design stages are done the design map names Adopt, by Ash, as the next step', async ($, on) => {
+  const w2 = await workspaceWorld(on, { ...designedTo(5), [`idea/${PROPOSAL_PATH}`]: '{}' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const done = mapData(w2).data
+  expect(done.branches.flatMap(b => b.items).every(d => d.state === 'built')).toBe(true)
+  expect(done.next.doer).toBe('ASH NEEDS TO')
+  expect(done.next.text).toContain('Adopt')
 })
 
 test('R-bob-17: the pane has an Open the map button that asks Claude to open docs/map.html, in a governed repo', async ($, on) => {
