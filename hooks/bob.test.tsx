@@ -1294,6 +1294,20 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('R-bob-20: pressing Approve starts the approved work with one prompt naming the increment and its requirement ids, so an approval never lands on an idle window (29 October 2026)', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: approveKey('INC-00') })
+  expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(1)
+  expect(w.prompts!.length).toBe(1)
+  expect(w.prompts![0]).toContain('INC-00')
+  expect(w.prompts![0]).toContain('R-P-00')
+  expect(w.prompts![0]).toContain('Do not stop to ask')
+  await ui.unmount()
+})
+
 test('R-bob-09: no Approve button while an increment is active', async ($, on) => {
   await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })

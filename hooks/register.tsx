@@ -746,6 +746,17 @@ async function pressApprove($: Engine, id: string, e: Any) {
   await resetRound($)
   await writePage($)
   redraw($)
+  // An approval that lands while nobody is running stalls the build (29 October 2026,
+  // AP-02 landed a minute after the window ended its turn). The click starts the work.
+  if (!text.includes('refused')) {
+    const m = await load($)
+    const inc = ((m.ledger?.increments ?? []) as Any[]).find(i => i.id === id)
+    const ids = ((inc?.requirement_ids ?? []) as string[]).join(', ')
+    await $.prompt.submit({
+      text: `Ash approved ${id}${inc?.title ? ` (${String(inc.title)})` : ''}. Start it now and run it to the end in this window: build it, capture evidence for ${ids || 'its requirement ids'} from tool results, rebuild docs/map.html, then give the three-line report (stage, live, next step with its doer). Do not stop to ask; ask Ash only for a person-only click, as one popup.`,
+      asUser: true,
+    })
+  }
 }
 
 // Send back: the person's note goes to the ledger as a human event; the
