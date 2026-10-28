@@ -191,7 +191,7 @@ function renderPicker() {
 function pick(h, l) { sel = { hub: h, leaf: l }; draw(); renderDetail(); renderPicker(); }
 document.getElementById('proj').textContent = D.project;
 document.getElementById('tally').textContent = D.proven + ' of ' + D.total;
-document.getElementById('nextline').textContent = D.next.text;
+document.getElementById('nextline').textContent = ({ 'ASH NEEDS TO': 'Ash needs to', 'CLAUDE': 'Claude' }[D.next.doer] || D.next.doer) + ': ' + D.next.text;
 document.getElementById('round').textContent = D.round;
 document.getElementById('who').textContent = D.next.doer;
 document.getElementById('whotext').textContent = D.next.text;
