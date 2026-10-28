@@ -1,0 +1,13 @@
+INC-07, 29 October 2026, plugin tests on engine 2.1.308.
+R-bob-01 red first: the report-check test failed before the check existed (a 5-line closing report was not blocked); green after:
+(pass) R-bob-01: a round under an active increment cannot end on a closing report longer than three lines; the block names the shape, once [33.02ms]
+(pass) R-bob-01: the report check idles in a repo BOB does not govern [20.38ms]
+ 81 pass
+ 0 fail
+
+Parser read against this session's real transcript format (JSON lines, last assistant text block): last closing paragraph counted as 1 line, so a normal reply passes.
+
+R-bob-04 and R-bob-02: the rules are in the three files Claude reads every session (grep -c):
+CLAUDE.md:1
+skills/design-with-bob/SKILL.md:1
+templates/workspace/CLAUDE.md:1

@@ -70,6 +70,7 @@ Regenerate from `bob/brief.md`, never from the conversation: `journey.md` (the u
 - (Stage F) the proposal passes the shape check with zero refusals.
 
 ## Always
+- Name the board and the map first: the first message of a session names `docs/status.html` and `docs/map.html` with the proven count and the next step with its doer (R-bob-04). Ask each decision once, as one popup in the window that will run the answer, naming that window (R-bob-02).
 - One recommended next action, with its owner, at the end of every stage.
 - Plain Australian English, headline first, no em-dashes, no engineering words to the operator (schema, JSON, hash are for the files, not the conversation).
 - Say "not read", "not found", "not traced" when that is true.

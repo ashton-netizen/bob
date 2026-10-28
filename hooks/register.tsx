@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
-import { buildMapData, renderMap } from './map'
-import { STALE_MS, activeIncrement, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
+import { buildMapData, designMapData, renderMap, type MapData } from './map'
+import { STALE_MS, activeIncrement, canonical, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
 
@@ -133,7 +133,11 @@ async function load($: Engine): Promise<Model> {
 async function writePage($: Engine) {
   try {
     const m = await load($)
-    if (!m.ownLedger) return
+    if (!m.ownLedger) {
+      const d = await designOf($, m)
+      if (d) await writeMap($, m, null, designMapData(String(m.place?.project ?? 'this project'), STAGES, d.done, new Date().toISOString()))
+      return
+    }
     const b = describe(m, await read($, preflightAtom), Date.now())
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
     await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
@@ -146,13 +150,13 @@ async function writePage($: Engine) {
 // R-bob-17: docs/map.html, the project as a map. The template and the approved
 // character and lockups ship with the plugin (templates/map.html,
 // assets/bob/web/); the dots come from the records and nothing else.
-async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe>) {
+async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | null, data?: MapData) {
   try {
     const template = await readText($, `${$.plugin.root}/templates/map.html`)
     if (template === null) return
     const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
     const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
-    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, buildMapData(m, b, new Date().toISOString())))
+    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString())))
   } catch {
     // a missing asset never blocks a session; the board page is still written
   }
@@ -320,12 +324,12 @@ async function adopt($: Engine): Promise<string> {
   // proposal's records after them. A reused id with different content refuses.
   const clashes: string[] = []
   const mergeList = (kind: string, prior: Any[], added: Any[]): Any[] => {
-    const byId = new Map(prior.map(r => [String(r.id), JSON.stringify(r)]))
+    const byId = new Map(prior.map(r => [String(r.id), canonical(r)]))
     const fresh: Any[] = []
     for (const r of added) {
       const seen = byId.get(String(r.id))
       if (seen === undefined) fresh.push(r)
-      else if (seen !== JSON.stringify(r)) clashes.push(`${kind} ${r.id} already exists with different content`)
+      else if (seen !== canonical(r)) clashes.push(`${kind} ${r.id} already exists with different content`)
     }
     return [...prior, ...fresh]
   }
@@ -646,6 +650,25 @@ async function carryOver($: Engine) {
   }
   if (await read($, provenAtom)) return
   await update($, pendingAtom, () => ({ increment: String(active.id), ids, files: wrote.length }))
+}
+
+// The text of the last assistant message in a Claude Code transcript (JSON lines),
+// or null when it cannot be read as one.
+function lastAssistantText(raw: string): string | null {
+  const lines = raw.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trim()) continue
+    try {
+      const o = JSON.parse(lines[i]) as Any
+      if (o.type !== 'assistant' && o.message?.role !== 'assistant') continue
+      const parts = (o.message?.content ?? []) as Any[]
+      const text = parts.filter(c => c?.type === 'text').map(c => String(c.text ?? '')).join('\n')
+      return text.trim() ? text : null
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 // null when the write may go on; else the Gate B text. Evidence clears the hold.
@@ -1035,6 +1058,27 @@ async function bobCommand($: Engine, e: Any): Promise<{ text: string }> {
   return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
 }
 
+// R-bob-01: the closing report of a round under an active increment is at
+// most three lines (stage, live, next step with its doer), after any detail.
+// Blocks once per round; an unreadable transcript never blocks. null = allow.
+async function reportCheck($: Engine, e: Any): Promise<{ block: string } | null> {
+    if ((e as Any).stop_hook_active) return null
+    const m = await load($)
+    if (!m.governed || !m.ledger || !activeIncrement(m)) return null
+    const path = String((e as Any).transcript_path ?? '')
+    const raw = path ? await readText($, path) : null
+    const last = raw === null ? null : lastAssistantText(raw)
+    if (last === null) return null
+    const paragraphs = last.trim().split(/\n\s*\n/)
+    const lines = paragraphs[paragraphs.length - 1].split('\n').filter(l => l.trim()).length
+    if (lines <= 3) return null
+    return {
+      block:
+        `BOB report check: this round ended on a closing report of ${lines} lines. The closing report is at most three lines: stage, live, and the next step with its doer. ` +
+        `Next action: Claude: keep the detail above and end on those three lines.`,
+    }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'bob', description: 'BOB: status (default), open the board pane, new <name> (a project in the BOB workspace), switch <name>, adopt this project from a proposal, approve <increment id> (a person only), or reconcile a run left running after an interruption' })
@@ -1144,11 +1188,11 @@ export const register: Register = on => {
   on('classic.Stop', async ($, e, next) => {
     await writePage($)
     const m = await load($)
-    if (!m.governed || !m.ledger) return next(e)
+    if (!m.governed || !m.ledger) return (await reportCheck($, e)) ?? next(e)
     const active = activeIncrement(m)
-    if (!active) return next(e)
+    if (!active) return (await reportCheck($, e)) ?? next(e)
     const wrote = await read($, touchedAtom)
-    if (wrote.length === 0) return next(e)
+    if (wrote.length === 0) return (await reportCheck($, e)) ?? next(e)
 
     const ids: string[] = active.requirement_ids ?? []
     const base = new Set(await read($, baselineAtom))
@@ -1157,7 +1201,7 @@ export const register: Register = on => {
       await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
       await update($, touchedAtom, () => [])
       redraw($)
-      return next(e)
+      return (await reportCheck($, e)) ?? next(e)
     }
 
     const kinds: string[] = m.schema?.evidence?.kinds ?? []
@@ -1169,7 +1213,7 @@ export const register: Register = on => {
 
     if (e.stop_hook_active) {
       $.ui.toast(`BOB: round left unproven for ${ids.join(', ')}`)
-      return next(e)
+      return (await reportCheck($, e)) ?? next(e)
     }
     return { block: message }
   })

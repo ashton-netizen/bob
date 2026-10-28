@@ -6,3 +6,4 @@ Plugin tests on engine 2.1.308, 28 October 2026, INC-06 (R-bob-18, R-bob-06, R-b
 (pass) R-bob-18: a round that gained evidence is never carried over or blocked as unproven, even when it wrote source files after the evidence landed [22.91ms]
  79 pass
  0 fail
+Note, 28 October 2026: R-bob-05's check reads 'adopt on this repo'. The proof is the merge test on a synthetic ledger-only repo (every existing record byte-identical, a clashing id refused, nothing written). It was not run on a real ledger-only repo, because BOB's own repo is already governed. Same treatment as R-bob-17.

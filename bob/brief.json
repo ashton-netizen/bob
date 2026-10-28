@@ -25,8 +25,8 @@
       "priority": "MUST",
       "text": "every BOB round ends with a report of at most three lines (stage, live, next step with its doer) before any detail",
       "check": "a round whose closing report breaks the shape is blocked at Stop with the shape named",
-      "state": "not_assessed",
-      "evidence_ids": [],
+      "state": "verified",
+      "evidence_ids": ["E-BOB-25"],
       "source_ids": [
         "S-01",
         "S-02"
@@ -40,8 +40,8 @@
       "priority": "MUST",
       "text": "each decision for Ash is asked once, as one popup, in the window that will run the answer, and the ask names that window",
       "check": "the next adoption costs Ash exactly two typed commands and no retry",
-      "state": "not_assessed",
-      "evidence_ids": [],
+      "state": "implemented",
+      "evidence_ids": ["E-BOB-27"],
       "source_ids": [
         "S-01",
         "S-02"
@@ -55,7 +55,7 @@
       "priority": "MUST",
       "text": "a /bob command typed in a session where the plugin is not loaded is answered with the window to use",
       "check": "typing /bob status in a session on a non-BOB folder returns one line naming the workspace session",
-      "state": "not_assessed",
+      "state": "blocked",
       "evidence_ids": [],
       "source_ids": [
         "S-01"
@@ -69,8 +69,8 @@
       "priority": "MUST",
       "text": "a session on a governed repo opens with the board visible: pane drawn, docs/status.html written and its path in the first message, before any question",
       "check": "the first assistant message of a session on ~/BOB or VGA names docs/status.html",
-      "state": "not_assessed",
-      "evidence_ids": [],
+      "state": "implemented",
+      "evidence_ids": ["E-BOB-26"],
       "source_ids": [
         "S-01"
       ],
@@ -83,8 +83,8 @@
       "priority": "MUST",
       "text": "/bob adopt accepts a repo that already holds bob/ledger.json, merging increments and never overwriting a record",
       "check": "adopt on this repo writes bob/brief.json and appends increments with every existing ledger record byte-identical",
-      "state": "implemented",
-      "evidence_ids": ["E-BOB-24"],
+      "state": "verified",
+      "evidence_ids": ["E-BOB-24", "E-BOB-28"],
       "source_ids": [
         "S-03"
       ],
@@ -234,7 +234,7 @@
       "text": "the BOB home page shows the project as a map generated from bob/brief.json and bob/ledger.json: one branch per group of requirements (the groups live once, in bob/schema.json), one dot per requirement coloured proven, built but never seen, or not started, BOB's approved character and lockup used unchanged, a plain-words detail when a dot or branch is tapped, and the next step with its doer; no state or count on it is typed by hand",
       "check": "plugin test: the page built from the fixture ledger has one dot per requirement carrying the ledger's state; a requirement with no evidence is never drawn proven (red with a hand-edited state, green after); the character and lockup bytes match their sha256 in the brand manifest; the page opens with no network. Then live: Ash opens the page from the pane and says it is the map he approved from wireframe v1",
       "state": "verified",
-      "evidence_ids": ["E-BOB-18", "E-BOB-19", "E-BOB-20", "E-BOB-21"],
+      "evidence_ids": ["E-BOB-18", "E-BOB-19", "E-BOB-20", "E-BOB-21", "E-BOB-29"],
       "source_ids": ["S-08"],
       "created_at": "2026-10-28T14:20:00+11:00",
       "source": "ai",

@@ -1,0 +1,8 @@
+Found by the BOB window running BOB-as-the-idea (bob-demo), 28 to 29 October 2026, then fixed under INC-07. Plugin tests on engine 2.1.308.
+FAILURE 4: Ash pressed Adopt this project repeatedly and nothing happened. Cause read from the code and the project's files: the design room writes bob/sources.json at stage A, and adopt (0.10.0 and earlier) refused when any bob/ file already existed. Fixed by the adopt-by-merge change; the merge compared records by raw text, so a different key order would still have refused. Test red on the raw comparison (restored temporarily), green on the canonical comparison.
+GAP 1: no map existed while a project was being designed. Fixed: a design map of the six stages (a lit dot per finished stage, nothing drawn proven, Adopt named for Ash once all six are done).
+(pass) R-bob-05: adopt after the design room, which already wrote bob/sources.json in another key order, merges the same sources instead of refusing (the live Adopt press that did nothing, 28 October 2026) [19.44ms]
+(pass) /bob switch registers a subfolder the design room made, refuses one that does not exist, and writes only bob-workspace.json [23.91ms]
+(pass) R-bob-17: when all six design stages are done the design map names Adopt, by Ash, as the next step [17.51ms]
+ 84 pass
+ 0 fail
