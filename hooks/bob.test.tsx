@@ -1539,6 +1539,22 @@ test('R-bob-13: review pages open from buttons once they exist, by asking Claude
   await ui.unmount()
 })
 
+test('R-bob-14: in the workspace, no Adopt button before the project holds an adopt proposal', async ($, on) => {
+  await workspaceWorld(on, designedTo(5))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const before = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await before.find({ key: 'adopt' })).toBe(undefined)
+  await before.unmount()
+})
+
+test('R-bob-14: in the workspace, the Adopt button shows once the project holds an adopt proposal (the live bob-demo pane, 29 October 2026)', async ($, on) => {
+  await workspaceWorld(on, { ...designedTo(5), [`idea/${PROPOSAL_PATH}`]: '{}' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const after = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await after.find({ key: 'adopt' })).toBeDefined()
+  await after.unmount()
+})
+
 test('R-bob-14: an approved design is adopted from a pane button, not a typed command', async ($, on) => {
   const w = await adoptWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
