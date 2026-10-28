@@ -55,16 +55,16 @@ Rules the command enforces, so draft to them:
 - Sources: one record per source the operator named, with `access` and `processing` set to what was observed (a source nobody opened is `queued` or `missing`, never `extracted`), plus `type`, `version`, `fingerprint`, `scope`, `knowledge_use`.
 - No `approvals`. The command writes `{"approvals": []}`; a proposal carrying an approval is refused.
 
-### 5. Run `/bob adopt` (Claude types the command)
+### 5. Adopt (Ash presses Adopt this project in the BOB pane; `/bob adopt` is the hidden fallback)
 It validates the proposal, refuses with every reason listed if any rule fails (fix the proposal, run again), or writes `bob/ledger.json`, `bob/sources.json`, `bob/approvals.json`, then `bob/brief.json` LAST so Gate A engages only once every file exists, then appends the status line. It runs no git. Read the five files back; `grep -c '"state": "verified"' bob/brief.json` must equal the count of distinct requirement ids with an evidence record in `bob/ledger.json`.
 
 ### 6. Hand over the approval (Ash needs to)
-The repo is now governed and no increment is active, so Gate A refuses every write, including the commit. Ash needs to type `/bob approve INC-00`. That command is the only writer of `bob/approvals.json`: it appends one immutable record with the brief's sha256 and the approver from `git config user.name`, sets `INC-00` approved then active, and refuses a duplicate or a second active increment. Save Gate A's denial text from before the approval under `docs/evidence/adopt/`: it is live evidence. Committing the `bob/` files afterwards stays a Gate A decision in the session; adopt never commits.
+The repo is now governed and no increment is active, so Gate A refuses every write, including the commit. Ash needs to press Approve for the first round in the BOB pane. That press is the only writer of `bob/approvals.json`: it appends one immutable record with the brief's sha256 and the approver from `git config user.name`, sets `INC-00` approved then active, and refuses a duplicate or a second active increment. Save Gate A's denial text from before the approval under `docs/evidence/adopt/`: it is live evidence. Committing the `bob/` files afterwards stays a Gate A decision in the session; adopt never commits.
 
 ## Verification checklist (tick with evidence, or say which is open)
 - [ ] Coverage manifest lists every input in one of four states and the live URL's fetch result.
 - [ ] `/bob adopt` output names the four files written and zero refusals.
 - [ ] No requirement reads `verified` or `accepted` without an evidence id in `bob/ledger.json`.
-- [ ] `bob/approvals.json` is `{"approvals": []}` until a human types `/bob approve`.
+- [ ] `bob/approvals.json` is `{"approvals": []}` until a person presses Approve.
 - [ ] `git log main -1` unchanged from preflight; `git diff main --stat` shows only `bob/`, `docs/evidence/adopt/`, `docs/project-status.md` and `.claude/settings.json`.
 - [ ] Nothing from the adopted repo's client material appears in the BOB plugin repo.

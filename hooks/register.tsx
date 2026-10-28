@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
-import { buildMapData, designMapData, renderMap, type MapData } from './map'
-import { STALE_MS, activeIncrement, canonical, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
+import { buildMapData, designMapData, renderMap, QUESTION, type MapData, type MapFile } from './map'
+import { STALE_MS, activeIncrement, canonical, approvalVerdict, clipText, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, stateWords, statusText, titleOf, when } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
 
@@ -30,6 +30,9 @@ const provenAtom = atom({ plugin: 'bob', key: 'proven' } as const, false as bool
 const noteAtom = atom({ plugin: 'bob', key: 'note' } as const, null as string | null)
 // The main loop's running turn, for Pause (R-bob-12); null between turns.
 const turnAtom = atom({ plugin: 'bob', key: 'turn' } as const, null as string | null)
+// The run an Approve click started (phase one, R-bob-demo-17): closed with a
+// finished event when the turn it started ends; null when no click started one.
+const runAtom = atom({ plugin: 'bob', key: 'run' } as const, null as string | null)
 
 type Engine = Any
 
@@ -130,12 +133,23 @@ async function load($: Engine): Promise<Model> {
 // The test kit's $ has no ui.invalidate; a live session does.
 // docs/status.html: the board as a branded page in the governed repo, so a
 // Stepper can open it with no session running. Never from fixtures.
+// bob/map.json: where each promise sits on the ten stages, short labels, and the
+// product schematic. Written by the design room; absent means stage 8 for all.
+async function readMapFile($: Engine, m: Model): Promise<MapFile> {
+  const file = await readJson($, at(m.root, 'bob/map.json'), [])
+  return file && typeof file === 'object' ? (file as MapFile) : {}
+}
+
 async function writePage($: Engine) {
   try {
     const m = await load($)
     if (!m.ownLedger) {
+      // A project being designed, or a fresh one with nothing yet: the same
+      // ten-stage map, with the one question when nothing has started.
+      if (m.place.workspace && !m.place.project) return
       const d = await designOf($, m)
-      if (d) await writeMap($, m, null, designMapData(String(m.place?.project ?? 'this project'), STAGES, d.done, new Date().toISOString()))
+      const done = d ? d.done : STAGES.map(() => false)
+      if (d || (m.place.workspace && m.place.project)) await writeMap($, m, null, designMapData(m, String(m.place?.project ?? 'this project'), STAGES, done, new Date().toISOString(), await readMapFile($, m)))
       return
     }
     const b = describe(m, await read($, preflightAtom), Date.now())
@@ -147,7 +161,7 @@ async function writePage($: Engine) {
   }
 }
 
-// R-bob-17: docs/map.html, the project as a map. The template and the approved
+// docs/map.html, the project as a map. The template and the approved
 // character and lockups ship with the plugin (templates/map.html,
 // assets/bob/web/); the dots come from the records and nothing else.
 async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | null, data?: MapData) {
@@ -156,7 +170,7 @@ async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | nu
     if (template === null) return
     const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
     const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
-    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString())))
+    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString(), await readMapFile($, m))))
   } catch {
     // a missing asset never blocks a session; the board page is still written
   }
@@ -360,7 +374,8 @@ async function adopt($: Engine): Promise<string> {
 
   const incIds = (ledger.increments as Any[]).map(i => `${i.id} ${i.state}`).join(', ')
   const name = String(p.brief.project?.name ?? 'this repo')
-  const line = `- /bob adopt, ${stamp()}: implemented. bob/brief.json (${(brief.requirements as Any[]).length} requirements), bob/ledger.json (${incIds || 'no increments'}; ${(ledger.evidence as Any[]).length} evidence records), bob/sources.json (${(p.sources as Any[]).length} sources), bob/approvals.json (empty). Evidence: ${PROPOSAL_PATH}. Ash needs to: type /bob approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'}.`
+  const first = (ledger.increments as Any[])[0]
+  const line = `- adopt, ${stamp()}: implemented. bob/brief.json (${(brief.requirements as Any[]).length} requirements), bob/ledger.json (${incIds || 'no increments'}; ${(ledger.evidence as Any[]).length} evidence records), bob/sources.json (${(p.sources as Any[]).length} sources), bob/approvals.json (empty). Evidence: ${PROPOSAL_PATH}. Ash needs to: press Approve for “${titleOf(first)}” in the BOB pane.`
   const current = await readText($, at(root, 'docs/project-status.md'))
   const status = current === null
     ? `# ${name} · project status (living file, update in place)\n\nGoverned by BOB. States and transitions: bob/schema.json in the BOB plugin.\n\n## Build log (one line per step: step, state, evidence)\n${line}\n`
@@ -370,7 +385,7 @@ async function adopt($: Engine): Promise<string> {
   return [
     `BOB adopt: wrote ${wrote.length} files, refused 0 (under ${root}).`,
     ...wrote.map(w => `- wrote ${w}`),
-    `Gate A is now engaged: no increment is active, so every write is refused until Ash presses Approve ${(ledger.increments as Any[])[0]?.id ?? '<increment id>'} in the BOB pane.`,
+    `Gate A is now engaged: no increment is active, so every write is refused until Ash presses Approve for “${titleOf(first)}” in the BOB pane.`,
     'Nothing was committed: committing is a Gate A decision in the session.',
   ].join('\n')
 }
@@ -381,7 +396,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
   if (originKind && NON_HUMAN_ORIGINS.includes(originKind)) return refusedText('approve', [`this command came from "${originKind}", not a person. Only a person at the prompt approves`])
 
   const m = await load($)
-  if (!m.governed) return refusedText('approve', ['this repo is not governed (no bob/brief.json). Run /bob adopt first'])
+  if (!m.governed) return refusedText('approve', ['this repo is not governed (no bob/brief.json). Adopt it first: the BOB pane offers Adopt once a proposal exists'])
   if (!m.ledger || !m.brief) return refusedText('approve', ['bob/ledger.json or bob/brief.json is missing or does not parse'])
   if (m.parseErrors.length) return refusedText('approve', m.parseErrors)
   if (!m.hash) return refusedText('approve', ['bob/brief.json could not be hashed'])
@@ -498,7 +513,7 @@ async function moved($: Engine) {
 
 async function newProject($: Engine, nameArg: string, originKind: string | undefined): Promise<string> {
   const name = nameArg.trim()
-  if (!name) return refusedText('new', ['no project name given. Usage: /bob new <name> (lowercase letters, digits and hyphens)'], RETYPE)
+  if (!name) return refusedText('new', ['no project name given (lowercase letters, digits and hyphens)'], RETYPE)
   const rules = await workspaceRules($)
   if (!rules) return refusedText('new', ['bob/schema.json in the plugin folder has no workspace section'], 'Ash needs to reinstall BOB')
   const place = await locate($)
@@ -740,23 +755,53 @@ async function personRefused($: Engine, what: string, e: Any): Promise<boolean> 
 }
 
 async function pressApprove($: Engine, id: string, e: Any) {
-  if (await personRefused($, `Approve ${id}`, e)) return
+  if (await personRefused($, 'Approve', e)) return
   const text = await approve($, id, undefined)
-  await update($, noteAtom, () => text.split('\n').slice(0, 2).join(' '))
+  const refused = text.includes('refused')
+  const m = await load($)
+  const inc = ((m.ledger?.increments ?? []) as Any[]).find(i => i.id === id)
+  const approver = String(m.approvals[m.approvals.length - 1]?.approver ?? 'you')
+  await update($, noteAtom, () => (refused ? `Approve did not go through: ${text.split('\n')[1]?.replace(/^- /, '') ?? 'see the chat'}` : `Approved: “${titleOf(inc)}” by ${approver}. Claude starts now.`))
   await resetRound($)
+  // An approval that lands while nobody is running stalls the build (29 October 2026,
+  // AP-02 landed a minute after the window ended its turn). The click starts the
+  // work, and the ledger says so: one run and one started event, both human-origin,
+  // so the start is on record (phase one, R-bob-demo-17).
+  if (!refused && m.ledger) {
+    const now = stamp()
+    const runs: Any[] = m.ledger.runs ?? []
+    const events: Any[] = m.ledger.events ?? []
+    const run = { id: `RUN-${String(runs.length + 1).padStart(2, '0')}`, increment_id: id, state: 'running', started_at: now, last_event_at: now, session_id: null, cancel_requested: false, exit_reason: null, cost_usd_reported: null, created_at: now, source: 'human', is_synthetic: false }
+    const event = { id: `EV-BOB-${String(events.length + 1).padStart(2, '0')}`, run_id: run.id, at: now, origin: 'human', type: 'started', detail: `“${titleOf(inc)}” started by Ash’s click on Approve`, created_at: now, source: 'human', is_synthetic: false }
+    await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, runs: [...runs, run], events: [...events, event] }))
+    await update($, runAtom, () => run.id)
+  }
   await writePage($)
   redraw($)
-  // An approval that lands while nobody is running stalls the build (29 October 2026,
-  // AP-02 landed a minute after the window ended its turn). The click starts the work.
-  if (!text.includes('refused')) {
-    const m = await load($)
-    const inc = ((m.ledger?.increments ?? []) as Any[]).find(i => i.id === id)
+  if (!refused) {
     const ids = ((inc?.requirement_ids ?? []) as string[]).join(', ')
     await $.prompt.submit({
       text: `Ash approved ${id}${inc?.title ? ` (${String(inc.title)})` : ''}. Start it now and run it to the end in this window: build it, capture evidence for ${ids || 'its requirement ids'} from tool results, rebuild docs/map.html, then give the three-line report (stage, live, next step with its doer). Do not stop to ask; ask Ash only for a person-only click, as one popup.`,
       asUser: true,
     })
   }
+}
+
+// The run an Approve click started ends with the turn it started: one finished
+// event, the run completed. A run nobody closes shows as stale and is closed by
+// Close stale run, which stays the route for an interrupted turn.
+async function closeRun($: Engine) {
+  const runId = await read($, runAtom)
+  if (!runId) return
+  await update($, runAtom, () => null)
+  const m = await load($)
+  if (!m.ownLedger || !m.ledger) return
+  const runs: Any[] = m.ledger.runs ?? []
+  const events: Any[] = m.ledger.events ?? []
+  if (!runs.some(r => r.id === runId && r.state === 'running')) return
+  const now = stamp()
+  const event = { id: `EV-BOB-${String(events.length + 1).padStart(2, '0')}`, run_id: runId, at: now, origin: 'bob', type: 'finished', detail: 'the turn the click started has ended', created_at: now, source: 'tool', is_synthetic: false }
+  await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, runs: runs.map(r => (r.id === runId ? { ...r, state: 'completed', exit_reason: 'turn ended', last_event_at: now } : r)), events: [...events, event] }))
 }
 
 // Send back: the person's note goes to the ledger as a human event; the
@@ -889,7 +934,28 @@ async function pressPause($: Engine, e: Any) {
   redraw($)
 }
 
-const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.`
+// The refusal Claude reads: plain words first, then the ids and hashes it needs.
+const denial = (gate: string, v: Extract<Verdict, { ok: false }>) => `BOB ${gate} refused this write. ${v.reason}. Next action: ${v.next}.${v.detail ? ` For the files: ${v.detail}.` : ''}`
+
+// Phase one (U-07, seen 29 October 2026): with no round approved, Claude may
+// still PROPOSE: write bob/brief.json (the state guard still applies) and
+// bob/ledger.json as long as nothing in the written ledger is active or
+// approved. Approval stays a person's click; this only stops the gate closing
+// one step early on the plan itself.
+function proposesOnly(m: Model, path: string, e: Any): boolean {
+  const r = path.startsWith(`${m.root}/`) ? path.slice(m.root.length + 1) : path
+  if (r === 'bob/brief.json') return true
+  if (r !== 'bob/ledger.json') return false
+  const current = m.ledger ? JSON.stringify(m.ledger) : ''
+  const text = e.tool === 'Write' ? String(e.content ?? '') : proposedText(e, current)
+  if (text === null) return false
+  try {
+    const after = JSON.parse(text) as Any
+    return ((after.increments ?? []) as Any[]).every(i => !['active', 'approved'].includes(String(i.state)))
+  } catch {
+    return false
+  }
+}
 
 // The state-table guard on bob/brief.json: every changed requirement state must
 // be a transition the schema allows; verified needs an evidence record; accepted
@@ -1077,7 +1143,12 @@ async function bobCommand($: Engine, e: Any): Promise<{ text: string }> {
 
 // R-bob-01: the closing report of a round under an active increment is at
 // most three lines (stage, live, next step with its doer), after any detail.
-// Blocks once per round; an unreadable transcript never blocks. null = allow.
+// Phase one adds two cures from the post-mortem: the "live" line carries the
+// map (its link or docs/map.html), so every round ends by showing the map
+// (R-bob-demo-16); and the next step is never Claude's own, because a round
+// that ends on a step Claude could take is a round that stopped for nothing
+// (R-bob-demo-17). Blocks once per round; an unreadable transcript never
+// blocks. null = allow.
 async function reportCheck($: Engine, e: Any): Promise<{ block: string } | null> {
     if ((e as Any).stop_hook_active) return null
     const m = await load($)
@@ -1087,13 +1158,32 @@ async function reportCheck($: Engine, e: Any): Promise<{ block: string } | null>
     const last = raw === null ? null : lastAssistantText(raw)
     if (last === null) return null
     const paragraphs = last.trim().split(/\n\s*\n/)
-    const lines = paragraphs[paragraphs.length - 1].split('\n').filter(l => l.trim()).length
-    if (lines <= 3) return null
-    return {
-      block:
-        `BOB report check: this round ended on a closing report of ${lines} lines. The closing report is at most three lines: stage, live, and the next step with its doer. ` +
-        `Next action: Claude: keep the detail above and end on those three lines.`,
+    const closing = paragraphs[paragraphs.length - 1].split('\n').filter(l => l.trim())
+    const lines = closing.length
+    if (lines > 3) {
+      return {
+        block:
+          `BOB report check: this round ended on a closing report of ${lines} lines. The closing report is at most three lines: stage, live, and the next step with its doer. ` +
+          `Next action: Claude: keep the detail above and end on those three lines.`,
+      }
     }
+    const text = closing.join('\n')
+    if (!/docs\/map\.html|https?:\/\/\S+/i.test(text)) {
+      return {
+        block:
+          'BOB report check: the closing report does not show the map. Every round ends by republishing the map and giving its link (or docs/map.html) on the live line, so the person sees it rather than reads about it. ' +
+          'Next action: Claude: rebuild docs/map.html, publish it, and put the link on the live line.',
+      }
+    }
+    const lastLine = closing[closing.length - 1]
+    if (/^(?:\W*next[^:]*:\s*)?\**\s*claude\b/i.test(lastLine.trim())) {
+      return {
+        block:
+          'BOB report check: the closing report ends on a next step whose doer is Claude. A round never ends on a step Claude could take itself: take it now, or end on the one step only a person can do (an approval, a look). ' +
+          'Next action: Claude: do the step, then end on the person’s step.',
+      }
+    }
+    return null
 }
 
 export const register: Register = on => {
@@ -1130,6 +1220,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     if ((e as Any).agentId === undefined) {
       await update($, turnAtom, () => null)
+      await closeRun($)
       redraw($)
     }
     return next(e)
@@ -1152,11 +1243,12 @@ export const register: Register = on => {
   on('tool.call', { tool: /^(Edit|Write|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
     const m = await load($)
     const v = approvalVerdict(m)
-    // Redraw on a refusal so the pane shows the Approve or Re-approve button
-    // now, not when the turn ends.
-    if (!v.ok) { redraw($); return { deny: denial('Gate A', v) } }
-
     const path = String((e as Any).file_path ?? '')
+    // Redraw on a refusal so the pane shows the Approve or Re-approve button
+    // now, not when the turn ends. With no round approved, a write that only
+    // proposes (the brief, or a ledger with nothing active) may go on.
+    if (!v.ok && !(v.kind === 'unapproved' && proposesOnly(m, path, e as Any))) { redraw($); return { deny: denial('Gate A', v) } }
+
     // Gate B guards this repo only: a write outside it (a scratch page, a
     // notes file) is neither held nor counted as an unproven round.
     const inRepo = path.startsWith(`${m.root}/`)
@@ -1203,6 +1295,8 @@ export const register: Register = on => {
   // Gate B: a round that wrote files cannot end until the active increment's
   // requirement ids gained an evidence record (bob/schema.json, gates.B_evidence).
   on('classic.Stop', async ($, e, next) => {
+    // The turn an Approve click started is ending: close its run on the record.
+    await closeRun($)
     await writePage($)
     const m = await load($)
     if (!m.governed || !m.ledger) return (await reportCheck($, e)) ?? next(e)
@@ -1255,27 +1349,40 @@ export const register: Register = on => {
     const current = design ? design.done.findIndex(d => !d) : -1
     const gateA = active ? approvalVerdict(m) : null
     const staleRun = !!b.stale && b.stale.startsWith('stale, reconciling')
+    // Chips a person can read: the promise in a few words and its state, never an id.
+    const textOf = (rid: string) => clipText(reqs.find(r => r.id === rid)?.text ?? 'a promise', 44)
     const chips = (ids: string[]) => (
-      <Box flexDirection="row" gap={1} flexWrap="wrap">
+      <Box flexDirection="column">
         {ids.map(rid => (
-          <Text key={rid} color={colour({ id: rid, text: '', state: stateOf(rid), known: stateOf(rid) !== 'unknown', evidence: '' })}>
-            [{rid} {stateOf(rid).replace('_', ' ')}]
+          <Text key={rid} color={colour({ id: rid, text: '', state: stateOf(rid), known: stateOf(rid) !== 'unknown', evidence: '', proofs: 0 })}>
+            {`· ${textOf(rid)} [${stateOf(rid) === 'unknown' ? 'unknown state' : stateWords(stateOf(rid))}]`}
           </Text>
         ))}
       </Box>
     )
+    // The first thing a new person sees: the one question (R-bob-demo-14). It leads
+    // when the workspace has no project, or the current project has not started.
+    const askFirst = !!m.place.workspace && (!m.place.project || (!tracked && !design))
 
     return (
       <Box flexDirection="column" gap={1}>
+        {askFirst ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1}>
+            <Text weight="semibold">{QUESTION}</Text>
+            <Text dimColor>Say it in a sentence. BOB starts the project and the map lights up as each stage is proven.</Text>
+            <Input key="start-idea" label={QUESTION} placeholder="describe your idea in a sentence" submitLabel="Start" onSubmit={(value, ev) => submitIdea($, value, ev)} />
+          </Box>
+        ) : null}
+
         {waiting.length ? (
           <Box flexDirection="column" gap={1} borderStyle="round" paddingX={1}>
             <Text weight="semibold">Waiting on you</Text>
             {waiting.map(inc => (
               <Box key={`wait-${inc.id}`} flexDirection="column">
-                <Text>{`${inc.id}: ${String(inc.title ?? '')}`}</Text>
+                <Text>{`“${titleOf(inc)}” is ready for your yes.`}</Text>
                 {chips((inc.requirement_ids ?? []) as string[])}
                 <Button key={`approve-${inc.id}`} variant="primary" onPress={press => pressApprove($, String(inc.id), press)}>
-                  {`Approve ${inc.id}`}
+                  {`Approve: ${titleOf(inc)}`}
                 </Button>
                 <Input key={`sendback-${inc.id}`} label="Send back with a note" placeholder="what needs to change" submitLabel="Send back" onSubmit={(value, ev) => sendBack($, String(inc.id), value, ev)} />
               </Box>
@@ -1285,11 +1392,11 @@ export const register: Register = on => {
 
         {active ? (
           <Box flexDirection="column" borderStyle="round" paddingX={1}>
-            <Text weight="semibold">{`Round: ${active.id}: ${String(active.title ?? '')}`}</Text>
+            <Text weight="semibold">{`Round: ${titleOf(active)}`}</Text>
             {chips((active.requirement_ids ?? []) as string[])}
             {gateA && !gateA.ok ? (
               <Button key={`reapprove-${active.id}`} variant="primary" onPress={press => pressApprove($, String(active.id), press)}>
-                {`Approve ${active.id} against the current brief`}
+                {`Approve again: ${titleOf(active)} (the brief changed)`}
               </Button>
             ) : null}
             <Box flexDirection="row" gap={2}>
@@ -1347,7 +1454,9 @@ export const register: Register = on => {
                 {`Open ${p.name}`}
               </Button>
             ))}
-            <Input key="start-idea" label="Start a project" placeholder="describe your idea in a sentence" submitLabel="Start" onSubmit={(value, ev) => submitIdea($, value, ev)} />
+            {askFirst ? null : (
+              <Input key="start-idea" label="Start a project" placeholder="describe your idea in a sentence" submitLabel="Start" onSubmit={(value, ev) => submitIdea($, value, ev)} />
+            )}
           </Box>
         ) : null}
 
@@ -1356,14 +1465,14 @@ export const register: Register = on => {
           <Text>Project: {b.project}</Text>
           {b.workspace ? <Text dimColor>Workspace: {b.workspace}</Text> : null}
           <Text dimColor>{b.source}</Text>
-          <Text>Increment: {b.increment}</Text>
+          <Text>Round: {b.increment}</Text>
           <Text>Approval: {b.approval}</Text>
           <Text>Current task: {b.task}</Text>
           <Text>Blocker: {b.blocker}</Text>
           <Text weight="semibold">Next action: {b.next}</Text>
           {note ? <Text dimColor>{note}</Text> : null}
           {pending ? (
-            <Text color="warning">{`Gate B: the last round left ${pending.ids.join(', ')} unproven; only evidence may be written until it lands`}</Text>
+            <Text color="warning">{`Gate B: the last round left ${pending.ids.length === 1 ? 'one promise' : `${pending.ids.length} promises`} unproven; only proof may be written until it lands`}</Text>
           ) : null}
           {b.stale ? <Text color="warning">{b.stale}</Text> : <Text dimColor>ledger: current</Text>}
           {staleRun ? (
@@ -1384,13 +1493,12 @@ export const register: Register = on => {
 
         <Box flexDirection="column">
           <Text weight="semibold">Board</Text>
-          {b.rows.length === 0 ? <Text dimColor>no requirements</Text> : null}
+          {b.rows.length === 0 ? <Text dimColor>no promises yet</Text> : null}
           {b.rows.map(r => (
             <Box key={r.id} flexDirection="row" gap={1}>
-              <Text mono>{r.id}</Text>
               <Text>{r.text}</Text>
-              <Text color={colour(r)}>[{r.known ? r.state : `unknown state ${r.state}`}]</Text>
-              {r.evidence ? <Text dimColor>{r.evidence}</Text> : null}
+              <Text color={colour(r)}>[{r.known ? stateWords(r.state) : `unknown state ${r.state}`}]</Text>
+              {r.proofs ? <Text dimColor>{r.proofs === 1 ? 'one proof' : `${r.proofs} proofs`}</Text> : null}
             </Box>
           ))}
         </Box>
@@ -1400,7 +1508,7 @@ export const register: Register = on => {
           {b.evidence.length === 0 ? <Text dimColor>none</Text> : null}
           {b.evidence.map(ev => (
             <Text key={ev.id} dimColor>
-              {ev.id} · {ev.kind} · {ev.requirement} · {ev.at}
+              {`${ev.kind} for “${ev.about}” · ${when(ev.at)}`}
             </Text>
           ))}
           {b.notes.map(n => (

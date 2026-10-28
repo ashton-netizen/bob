@@ -1,0 +1,12 @@
+(fail) R-bob-demo-11: docs/map.html puts every promise on one of the ten stages (bob/map.json says which; unplaced ones on Build), a stage is lit only when all its promises are proven, and no label carries an id [21.86ms]
+(fail) R-bob-demo-13: nothing a person reads carries an id, hash or number: the pane on every surface, the map page labels and lines, and the status page [21.47ms]
+(fail) R-bob-demo-14: the first thing a new person sees is the one question: a workspace with no project yet [18.04ms]
+(fail) R-bob-demo-14: a fresh project with nothing started asks the one question in the pane and on the map, with all ten stages unlit behind it [21.68ms]
+(fail) R-bob-demo-15: BOB never asks a person to type: the adopt status line and result, the approve refusals and Gate A name a button, never a command [25.21ms]
+(fail) R-bob-demo-16: a round cannot end on a closing report that does not show the map; the live line carries docs/map.html or a link [18.53ms]
+(fail) R-bob-demo-17: a round cannot end on a next step whose doer is Claude [21.68ms]
+(fail) R-bob-demo-17: an Approve click puts a started run and a human started event in the ledger, and the turn it started closes the run with a finished event [28.31ms]
+(fail) U-07: with no round approved Claude may still propose: a write to bob/brief.json or a ledger with nothing active goes on, a ledger that makes an increment active is refused, and other files stay refused [24.34ms]
+(fail) R-bob-demo-12: the map page carries the product schematic from bob/map.json: its screens and flows, drawn into the page [16.34ms]
+ 79 pass
+ 19 fail

@@ -221,33 +221,19 @@
     "rule": "a connector or unsupported format never shows as ingested merely because a file was attached"
   },
   "map": {
-    "$comment": "R-bob-17, the one home for the map's branches (the home page docs/map.html). A requirement not listed here still gets a dot, on a branch named Other, so none can vanish. State colours: proven needs state verified or accepted AND an evidence record; built is designed, implemented or reported; todo is anything else.",
-    "branches": [
-      { "id": "idea", "name": "Say your idea", "blurb": "You speak. BOB starts the project. No command.", "items": [
-        { "id": "R-bob-08", "label": "Start a project from plain words" },
-        { "id": "R-bob-11", "label": "Project home in the pane" } ] },
-      { "id": "brief", "name": "Brief & design", "blurb": "BOB asks plain questions and writes the brief and the schematic.", "items": [
-        { "id": "R-bob-13", "label": "Design stages shown" },
-        { "id": "R-bob-07", "label": "Design room first run" } ] },
-      { "id": "approve", "name": "You approve", "blurb": "Nothing is built until a person clicks yes.", "items": [
-        { "id": "R-bob-09", "label": "Only a person can approve" },
-        { "id": "R-bob-12", "label": "Approve or send back by button" },
-        { "id": "R-bob-15", "label": "Approving the next round closes the last" },
-        { "id": "R-bob-06", "label": "Approver and time show at once" } ] },
-      { "id": "rounds", "name": "Locked rounds", "blurb": "Small rounds. No edits without approval. No round ends without proof.", "items": [
-        { "id": "R-bob-00", "label": "BOB is governed by BOB" },
-        { "id": "R-bob-10", "label": "A round cannot end unproven" },
-        { "id": "R-bob-16", "label": "An idle repo does not freeze" },
-        { "id": "R-bob-18", "label": "A proven round is never held as unproven" } ] },
-      { "id": "report", "name": "Report back", "blurb": "Short, plain and the same every time.", "items": [
-        { "id": "R-bob-01", "label": "Three-line report each round" },
-        { "id": "R-bob-02", "label": "Each decision asked once" },
-        { "id": "R-bob-04", "label": "Board shows when a project opens" } ] },
-      { "id": "guide", "name": "Guide & adopt", "blurb": "BOB points you to the right place and takes on existing builds.", "items": [
-        { "id": "R-bob-14", "label": "Nothing asks you to type a command" },
-        { "id": "R-bob-03", "label": "Wrong window gets pointed to the right one" },
-        { "id": "R-bob-05", "label": "Adopt a repo that already has a ledger" },
-        { "id": "R-bob-17", "label": "This map, generated from the ledger" } ] }
+    "$comment": "The map, BOB's home page (docs/map.html). Phase one of the rebuild, 29 October 2026: the spine is Ash's ten-stage mind map, listed here once. A project says where each promise sits in bob/map.json (stages: requirement id to stage number; labels: short plain labels; schematic: the product's screens and flows). A promise with no stage sits on stage 8. A stage lights only when every promise in it is proven (state verified or accepted AND an evidence record). Nothing on the page carries an id, hash or number a person has to decode.",
+    "project_file": "bob/map.json",
+    "stages": [
+      { "n": 1, "name": "Define the outcome and scope", "short": "Outcome", "blurb": "Who it is for, what changes for them, and what is out." },
+      { "n": 2, "name": "Establish what good looks like", "short": "What good looks like", "blurb": "Examples, the bar to clear, and what would be hard to copy." },
+      { "n": 3, "name": "Map the workflow and ecosystem", "short": "Workflow", "blurb": "The steps and decisions before any tool is chosen, with an owner on each." },
+      { "n": 4, "name": "Establish data and source foundations", "short": "Data and sources", "blurb": "What the product reads and writes, where it lives, and what could not be read." },
+      { "n": 5, "name": "Design the experience", "short": "Experience", "blurb": "The screens, the flows between them, and what the person sees at each step." },
+      { "n": 6, "name": "Choose architecture, models and skills", "short": "Architecture", "blurb": "The simplest adequate shape, the models by task, and the thinking pulled in." },
+      { "n": 7, "name": "Prepare the build environment", "short": "Environment", "blurb": "The right repo, branch and checks before any feature work." },
+      { "n": 8, "name": "Build in complete, testable increments", "short": "Build", "blurb": "Small rounds, each ending in something a person can see." },
+      { "n": 9, "name": "Verify quality and release", "short": "Verify and release", "blurb": "Proof against the brief, the reviewers, and a deliberate release." },
+      { "n": 10, "name": "Operate, measure and learn", "short": "Operate and learn", "blurb": "Who owns it live, what is measured, and what the next project learns." }
     ]
   },
   "gates": {

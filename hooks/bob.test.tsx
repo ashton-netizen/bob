@@ -25,10 +25,19 @@ const base = (source: string) => ({ created_at: T, source, is_synthetic: true })
 const MAP_TEMPLATE = '<img src="data:image/png;base64,{{CHAR}}"><img src="data:image/png;base64,{{DARK}}"><img src="data:image/png;base64,{{LIGHT}}"><script>window.BOB_MAP = {{DATA}};</script>'
 
 const SCHEMA = {
+  // Mirrors bob/schema.json's map.stages (phase one, 29 October 2026): the ten-stage spine.
   map: {
-    branches: [
-      { id: 'reg', name: 'Registering', blurb: 'who is in', items: [{ id: 'R-T-01', label: 'Register people' }, { id: 'R-T-02', label: 'De-duplicate' }] },
-      { id: 'bank', name: 'Banking', blurb: 'the bank', items: [{ id: 'R-T-03', label: 'The question bank' }] },
+    stages: [
+      { n: 1, name: 'Define the outcome and scope', short: 'Outcome', blurb: 'who and what' },
+      { n: 2, name: 'Establish what good looks like', short: 'What good looks like', blurb: 'the bar' },
+      { n: 3, name: 'Map the workflow and ecosystem', short: 'Workflow', blurb: 'the steps' },
+      { n: 4, name: 'Establish data and source foundations', short: 'Data and sources', blurb: 'the data' },
+      { n: 5, name: 'Design the experience', short: 'Experience', blurb: 'the screens' },
+      { n: 6, name: 'Choose architecture, models and skills', short: 'Architecture', blurb: 'the shape' },
+      { n: 7, name: 'Prepare the build environment', short: 'Environment', blurb: 'the repo' },
+      { n: 8, name: 'Build in complete, testable increments', short: 'Build', blurb: 'the rounds' },
+      { n: 9, name: 'Verify quality and release', short: 'Verify and release', blurb: 'the proof' },
+      { n: 10, name: 'Operate, measure and learn', short: 'Operate and learn', blurb: 'live' },
     ],
   },
   record_base: { required: ['id', 'created_at', 'source', 'is_synthetic'], source_values: ['human', 'ai', 'tool'] },
@@ -320,11 +329,11 @@ test('the pane draws the ledger on every surface: Now, Board with a blocked chip
 
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /INC-T-2/ }))?.text).toContain('INC-T-2')
+    expect((await ui.find({ type: 'Text', text: /bank and pulls/ }))?.text).toContain('bank and pulls')
     expect((await ui.find({ type: 'Text', text: /T-9 seed the bank/ }))?.text).toContain('T-9 seed the bank')
-    expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toBe('Next action: Claude: capture evidence for R-T-04')
+    expect((await ui.find({ type: 'Text', text: /Next action/ }))?.text).toBe('Next action: Claude: capture proof for “pulls”')
     expect((await ui.find({ type: 'Text', text: /\[blocked\]/ }))?.text).toBe('[blocked]')
-    expect((await ui.find({ type: 'Text', text: /E-T-03/ }))?.text).toContain('E-T-03')
+    expect((await ui.find({ type: 'Text', text: /test for “bank”/ }))?.text).toContain('test for “bank”')
     expect((await ui.find({ type: 'Text', text: /stale/ }))?.text).toContain('stale')
     await ui.unmount()
   }
@@ -342,6 +351,7 @@ test('Gate A refuses a write when no approval covers the active increment, namin
 
   const write = said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))
   expect(write).toContain('Gate A')
+  expect(write).toContain('bank and pulls')
   expect(write).toContain('INC-T-2')
   expect(write).toContain('approval')
   expect(write).toContain('Ash needs to')
@@ -385,7 +395,7 @@ test('a repo with bob/ledger.json but no brief shows its own ledger, not synthet
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /ledger\.json/ }))?.text).toBe('bob/ledger.json')
   expect(await ui.find({ type: 'Text', text: /SYNTHETIC/ })).toBe(undefined)
-  expect((await ui.find({ type: 'Text', text: /INC-T-2/ }))?.text).toContain('INC-T-2')
+  expect((await ui.find({ type: 'Text', text: /bank and pulls/ }))?.text).toContain('bank and pulls')
   await ui.unmount()
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))).toBe('')
 })
@@ -426,14 +436,14 @@ const said1 = (text: string) => JSON.stringify({ type: 'assistant', message: { r
 test('R-bob-01: a round under an active increment cannot end on a closing report longer than three lines; the block names the shape, once', async ($, on) => {
   const w = await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  w.transcript = [said1('Built it.\n\nDetail here.\n\nStage: built.\nLive: not yet.\nNext: Claude merges.\nExtra: a fourth line.')].join('\n')
+  w.transcript = [said1('Built it.\n\nDetail here.\n\nStage: built.\nLive: docs/map.html.\nNext: Ash needs to look.\nExtra: a fourth line.')].join('\n')
   const blocked = await $.classic.Stop(stopInput())
   expect(blocked.block ?? '').toContain('three lines')
   expect(blocked.block ?? '').toContain('stage')
   // One block per round.
   expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
   // A closing report of three lines passes.
-  w.transcript = [said1('Detail above.\n\nStage: built.\nLive: not yet.\nNext: Claude merges.')].join('\n')
+  w.transcript = [said1('Detail above.\n\nStage: built.\nLive: docs/map.html.\nNext: Ash needs to look.')].join('\n')
   expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
   // An unreadable transcript never blocks.
   w.transcript = 'not json'
@@ -485,7 +495,7 @@ test('a preflight STOP shows on the board and in /bob status', async ($, on) => 
   await ui.unmount()
 
   const status = await $.command.run({ command: 'bob', args: 'status' })
-  expect(status.text).toContain('INC-T-2')
+  expect(status.text).toContain('bank and pulls')
   expect(status.text).toContain('Next action')
   expect(status.text).toContain('STOP')
 })
@@ -688,7 +698,8 @@ test('adopt writes ledger, sources, empty approvals, then brief.json LAST, then 
   // Governed now: no increment is active, so Gate A refuses and points at the pane's Approve button (R-bob-14).
   const denied = said(await $.tool.call({ tool: 'Write', file_path: '/repo/notes.md', content: 'x' }))
   expect(denied).toContain('Gate A')
-  expect(denied).toContain('Approve INC-00')
+  expect(denied).toContain('press Approve for')
+  expect(denied).toContain('INC-00')
   expect(denied).not.toContain('/bob')
 })
 
@@ -1131,10 +1142,11 @@ test('docs/status.html is written from the ledger at session start and after eve
   const html = statusPage(w)[0].text
   expect(html).toContain('<!doctype html>')
   expect(html).toContain('<title>BOB ·')
-  for (const id of ['INC-T-2', 'R-T-01', 'R-T-02', 'R-T-03', 'R-T-04', 'R-T-05', 'E-T-03']) expect(html).toContain(id)
+  for (const word of ['bank and pulls', 'register', 'dedupe', 'bank', 'pulls', 'export', 'for “bank”']) expect(html).toContain(word)
+  for (const id of ['INC-T-2', 'R-T-01', 'E-T-03', 'AP-T-2']) expect(html).not.toContain(id)
   expect(html).toContain('blocked')
   expect(html).toContain('CLAUDE')
-  expect(html).toContain('capture evidence for R-T-04')
+  expect(html).toContain('capture proof for “pulls”')
   expect(html).toContain('No percentage')
   expect(html).not.toContain('undefined')
   expect(html).not.toContain('%')
@@ -1151,25 +1163,42 @@ test('docs/status.html is written from the ledger at session start and after eve
 const mapData = (w: World) => {
   const html = w.maps![w.maps!.length - 1].text
   const json = html.match(/window\.BOB_MAP = (\{.*\});<\/script>/s)
-  return { html, data: JSON.parse(json![1]) as { project: string; proven: number; total: number; round: string; next: { doer: string; text: string }; branches: { id: string; name: string; items: { id: string; state: string; label: string; plain: string }[] }[] } }
+  return { html, data: JSON.parse(json![1]) as { project: string; proven: number; total: number; round: string; question: string | null; schematic: { screens: { name: string }[] } | null; next: { doer: string; text: string }; branches: { id: string; name: string; lit: boolean; items: { id: string; state: string; label: string; plain: string }[] }[] } }
 }
 const b64 = (s: string) => btoa(unescape(encodeURIComponent(s)))
 
-test('R-bob-17: docs/map.html has one dot per requirement, its colour read from the ledger, on the schema branches, with the rest on Other', async ($, on) => {
-  const w = await approvedWorld(on)
+test('R-bob-demo-11: docs/map.html puts every promise on one of the ten stages (bob/map.json says which; unplaced ones on Build), a stage is lit only when all its promises are proven, and no label carries an id', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'bob/map.json': JSON.stringify({ stages: { 'R-T-01': 1, 'R-T-02': 1, 'R-T-03': 4, 'R-T-04': 4 }, labels: { 'R-T-01': 'People are registered' } }) } })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   expect(w.maps!.length).toBe(1)
   const { data } = mapData(w)
+  expect(data.branches.length).toBe(10)
+  expect(data.branches.map(b => b.name)[0]).toBe('Define the outcome and scope')
+  expect(data.branches.map(b => b.name)[9]).toBe('Operate, measure and learn')
+  const on_ = (n: number) => data.branches[n - 1]
+  expect(on_(1).items.map(d => d.id)).toEqual(['R-T-01', 'R-T-02'])
+  expect(on_(4).items.map(d => d.id)).toEqual(['R-T-03', 'R-T-04'])
+  expect(on_(8).items.map(d => d.id)).toEqual(['R-T-05'])
+  expect(on_(1).lit).toBe(true)
+  expect(on_(4).lit).toBe(false)
+  expect(on_(8).lit).toBe(false)
+  expect(on_(2).items.length).toBe(0)
+  expect(on_(2).lit).toBe(false)
   const dots = data.branches.flatMap(b => b.items)
-  expect(dots.map(d => d.id)).toEqual(['R-T-01', 'R-T-02', 'R-T-03', 'R-T-04', 'R-T-05'])
   const state = (id: string) => dots.find(d => d.id === id)?.state
   expect([state('R-T-01'), state('R-T-02'), state('R-T-03'), state('R-T-04'), state('R-T-05')]).toEqual(['proven', 'proven', 'built', 'built', 'todo'])
-  expect(data.branches.map(b => b.name)).toEqual(['Registering', 'Banking', 'Other'])
-  expect(data.branches[2].items.map(d => d.id)).toEqual(['R-T-04', 'R-T-05'])
+  expect(dots.find(d => d.id === 'R-T-01')?.label).toBe('People are registered')
+  expect(dots.find(d => d.id === 'R-T-02')?.label).toBe('Dedupe')
+  for (const d of dots) {
+    expect(d.label).not.toMatch(/R-T-\d/)
+    expect(d.plain).not.toMatch(/E-T-\d|R-T-\d/)
+  }
+  expect(data.round).toBe('Round running: bank and pulls')
+  expect(data.question).toBe(null)
   expect(data.proven).toBe(2)
   expect(data.total).toBe(5)
   expect(data.next.doer).toBe('CLAUDE')
-  expect(data.next.text).toContain('capture evidence for R-T-04')
+  expect(data.next.text).toContain('capture proof for “pulls”')
 })
 
 test('R-bob-17: a requirement the brief calls verified but with no evidence record is never drawn proven', async ($, on) => {
@@ -1204,12 +1233,10 @@ test('R-bob-06: the board page and /bob status show who approved and when, by th
   const w = await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   const html = statusPage(w)[0].text
-  expect(html).toContain('AP-T-2')
-  expect(html).toContain('Mags (fixture)')
-  expect(html).toContain('2026-10-21T10:00:00')
+  expect(html).toContain('approved by Mags (fixture), 21 October at 10:00 am')
+  expect(html).not.toContain('AP-T-2')
   const status = String(((await $.command.run({ command: 'bob', args: '' })) as any).text ?? '')
-  expect(status).toContain('AP-T-2')
-  expect(status).toContain('Mags (fixture)')
+  expect(status).toContain('approved by Mags (fixture), 21 October at 10:00 am')
 })
 
 test('docs/status.html is never written from fixtures: an ungoverned repo with no ledger of its own gets no page', async ($, on) => {
@@ -1289,7 +1316,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     await ui.press({ key: approveKey('INC-00') })
     expect(JSON.parse(w.files!['bob/approvals.json']).approvals.length).toBe(1)
-    expect((await ui.find({ type: 'Text', text: /written to bob\/approvals\.json by/ }))?.text).toContain('Test Approver')
+    expect((await ui.find({ type: 'Text', text: /^Approved: / }))?.text).toContain('Test Approver')
     await ui.unmount()
   })
 }
@@ -1675,7 +1702,7 @@ test('R-bob-16: a proposed or approved increment still refuses every write, and 
     expect(said(await $.tool.call({ tool: 'Bash', command: 'echo hi > /repo/out.txt' }))).toContain('Gate A')
   }
   w.ledger = idleLedger(['done', 'proposed'])
-  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('Approve INC-T-2')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toContain('press Approve for “bank and pulls”')
 })
 
 test('R-bob-16: idle never opens a ledger that does not parse, and an active increment whose brief changed after approval still refuses', async ($, on) => {
@@ -1698,9 +1725,9 @@ test('R-bob-16: the pane, /bob status and the board page say "idle: no round sta
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /^Increment:/ }))?.text).toBe('Increment: idle: no round started')
-    // The brief's own blocked requirement (R-T-05) is still a blocker; the missing round is not.
-    expect((await ui.find({ type: 'Text', text: /^Blocker:/ }))?.text).toBe('Blocker: R-T-05 blocked')
+    expect((await ui.find({ type: 'Text', text: /^Round:/ }))?.text).toBe('Round: idle: no round started')
+    // The brief's own blocked requirement (export) is still a blocker; the missing round is not.
+    expect((await ui.find({ type: 'Text', text: /^Blocker:/ }))?.text).toBe('Blocker: blocked: “export”')
     const next = String((await ui.find({ type: 'Text', text: /Next action/ }))?.text ?? '')
     expect(next).toMatch(/^Next action: Claude: /)
     expect(next).not.toContain('/bob')
@@ -1714,4 +1741,137 @@ test('R-bob-16: the pane, /bob status and the board page say "idle: no round sta
   const html = statusPage(w).slice(-1)[0].text
   expect(html).toContain('idle: no round started')
   expect(html).not.toContain('has state active')
+})
+
+// ---------------------------------------------------------------------------
+// Phase one of the rebuild (29 October 2026): the face in plain words, the one
+// question first, no typed asks, and the post-mortem cures as live checks.
+// ---------------------------------------------------------------------------
+
+// Anything a person reads must carry no requirement code, increment number,
+// approval number, hash or pull request number (R-bob-demo-13).
+const ID_LIKE = /\bR-[A-Za-z0-9]+-\d+\b|\bINC-[A-Za-z0-9-]*\d\b|\bAP-[A-Za-z0-9-]*\d\b|\bE-[A-Za-z0-9-]*\d\b|\b[0-9a-f]{12,}\b|(?:pull request|PR) ?#?\d+/
+
+test('R-bob-demo-13: nothing a person reads carries an id, hash or number: the pane on every surface, the map page labels and lines, and the status page', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'bob/map.json': JSON.stringify({ stages: { 'R-T-01': 1, 'R-T-02': 1 } }) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    const texts = await ui.findAll({ type: 'Text' })
+    expect(texts.length).toBeGreaterThan(5)
+    for (const t of texts) expect(String(t.text ?? '')).not.toMatch(ID_LIKE)
+    for (const b of await ui.findAll({ type: 'Button' })) expect(String(b.text ?? b.label ?? '')).not.toMatch(ID_LIKE)
+    await ui.unmount()
+  }
+  const { data } = mapData(w)
+  for (const br of data.branches) {
+    expect(br.name).not.toMatch(ID_LIKE)
+    for (const d of br.items) { expect(d.label).not.toMatch(ID_LIKE); expect(d.plain).not.toMatch(ID_LIKE) }
+  }
+  expect(data.round).not.toMatch(ID_LIKE)
+  expect(data.next.text).not.toMatch(ID_LIKE)
+  const page = statusPage(w)[0].text.replace(/<style>[\s\S]*?<\/style>/, '').replace(/data:image\/png;base64,[^"]*/g, '')
+  expect(page).not.toMatch(ID_LIKE)
+})
+
+test('R-bob-demo-14: the first thing a new person sees is the one question: a workspace with no project yet', async ($, on) => {
+  const w = await workspaceWorld(on, { 'bob-workspace.json': JSON.stringify({ id: 'WS-01', current: null, projects: [], ...real('tool') }) })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const texts = await ui.findAll({ type: 'Text' })
+  expect(String(texts[0]?.text ?? '')).toBe('What do you want to build?')
+  expect(await ui.find({ type: 'Input', key: 'start-idea' })).toBeDefined()
+  await ui.unmount()
+  expect(w.maps!.length).toBe(0)
+})
+
+test('R-bob-demo-14: a fresh project with nothing started asks the one question in the pane and on the map, with all ten stages unlit behind it', async ($, on) => {
+  const w2 = await workspaceWorld(on, { 'bob-workspace.json': wsFile(['idea'], 'idea'), 'idea/docs/project-status.md': '# idea\n' })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui2 = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(String((await ui2.findAll({ type: 'Text' }))[0]?.text ?? '')).toBe('What do you want to build?')
+  await ui2.unmount()
+  const { data } = mapData(w2)
+  expect(data.question).toBe('What do you want to build?')
+  expect(data.branches.length).toBe(10)
+  expect(data.branches.every(b => !b.lit && b.items.every(d => d.state === 'todo'))).toBe(true)
+  expect(data.round).toBe('Not started')
+})
+
+test('R-bob-demo-15: BOB never asks a person to type: the adopt status line and result, the approve refusals and Gate A name a button, never a command', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const out = await adopt($)
+  const status = w.files!['docs/project-status.md']
+  for (const t of [out, status]) {
+    expect(t).not.toMatch(/\btype\b/i)
+    expect(t).not.toContain('/bob')
+    expect(t).toMatch(/press(es)? Approve for/)
+  }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/x.md', content: 'x' }))).not.toMatch(/\btype\b/i)
+  expect(await approve($, 'INC-00')).not.toContain('/bob')
+})
+
+test('R-bob-demo-16: a round cannot end on a closing report that does not show the map; the live line carries docs/map.html or a link', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: nothing yet.\nNext: Ash needs to look.')
+  const blocked = await $.classic.Stop(stopInput())
+  expect(blocked.block ?? '').toContain('show the map')
+  expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: https://claude.ai/artifact/abc.\nNext: Ash needs to look.')
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('R-bob-demo-17: a round cannot end on a next step whose doer is Claude', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: docs/map.html.\nNext: Claude merges it.')
+  const blocked = await $.classic.Stop(stopInput())
+  expect(blocked.block ?? '').toContain('doer is Claude')
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: docs/map.html.\nNext step: Ash needs to press Approve.')
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('R-bob-demo-17: an Approve click puts a started run and a human started event in the ledger, and the turn it started closes the run with a finished event', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: approveKey('INC-00') })
+  await ui.unmount()
+  let ledger = JSON.parse(w.files!['bob/ledger.json'])
+  expect(ledger.runs.length).toBe(1)
+  expect(ledger.runs[0].state).toBe('running')
+  expect(ledger.runs[0].increment_id).toBe('INC-00')
+  const started = ledger.events.find((e: any) => e.type === 'started')
+  expect(started.origin).toBe('human')
+  expect(started.run_id).toBe(ledger.runs[0].id)
+  expect(w.prompts!.length).toBe(1)
+  // The turn the click started ends: the Stop hook sees it (the kit has no turn.complete).
+  await $.classic.Stop(stopInput())
+  ledger = JSON.parse(w.files!['bob/ledger.json'])
+  expect(ledger.runs[0].state).toBe('completed')
+  expect(ledger.events.some((e: any) => e.type === 'finished' && e.run_id === ledger.runs[0].id)).toBe(true)
+})
+
+test('U-07: with no round approved Claude may still propose: a write to bob/brief.json or a ledger with nothing active goes on, a ledger that makes an increment active is refused, and other files stay refused', async ($, on) => {
+  const w = await approvedWorld(on, { approvals: [], ledger: idleLedger(['done', 'proposed']) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' }))).toContain('Gate A')
+  const proposed = { ...idleLedger(['done', 'proposed']), increments: [...idleLedger(['done', 'proposed']).increments, { id: 'INC-T-3', title: 'phase two', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }] }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/ledger.json`, content: JSON.stringify(proposed) }))).toBe('')
+  const sneaky = { ...proposed, increments: proposed.increments.map((i: any) => (i.id === 'INC-T-2' ? { ...i, state: 'active' } : i)) }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/ledger.json`, content: JSON.stringify(sneaky) }))).toContain('Gate A')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/brief.json`, content: JSON.stringify(BRIEF) }))).toBe('')
+  void w
+})
+
+test('R-bob-demo-12: the map page carries the product schematic from bob/map.json: its screens and flows, drawn into the page', async ($, on) => {
+  const schematic = { screens: [{ name: 'Project home', shows: 'the map and one question', does: 'say an idea' }, { name: 'Waiting on you', shows: 'the round ready for a yes', does: 'approve or send back' }], flows: [{ from: 'Project home', to: 'Waiting on you', what: 'the idea becomes a brief to approve' }] }
+  const w = await approvedWorld(on, { files: { 'bob/map.json': JSON.stringify({ schematic }) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data, html } = mapData(w)
+  expect(data.schematic?.screens.map(s => s.name)).toEqual(['Project home', 'Waiting on you'])
+  expect(html).toContain('the idea becomes a brief to approve')
 })
