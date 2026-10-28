@@ -24,6 +24,7 @@ declare module 'claude-code' {
       pending: Pending | null
       note: string | null
       turn: string | null
+      proven: boolean
     }
   }
 }
