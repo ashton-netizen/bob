@@ -82,7 +82,21 @@ export const evidenceFor = (m: Model, ids: string[]): Any[] =>
 export const IDLE = 'idle: no round started'
 export const isIdle = (m: Model): boolean => ((m.ledger?.increments ?? []) as Any[]).every(i => ['done', 'returned'].includes(i.state))
 
-export type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: string }
+// A refusal carries plain words for a person (reason, next) and, apart, the ids
+// and hashes Claude needs (detail). `kind` names the one refusal under which
+// Claude may still propose a round (see register.tsx, Gate A).
+export type Verdict = { ok: true; note: string } | { ok: false; reason: string; next: string; detail?: string; kind?: 'unapproved' }
+
+export const titleOf = (inc: Any | undefined): string => String(inc?.title ?? 'this round')
+export const when = (iso: unknown): string => {
+  const t = Date.parse(String(iso ?? ''))
+  if (Number.isNaN(t)) return 'an unknown time'
+  try {
+    return new Date(t).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+  } catch {
+    return new Date(t).toISOString()
+  }
+}
 
 // Gate A: deny unless an approval record has brief_hash == sha256(bob/brief.json)
 // and the active increment in scope_increment_ids, or the repo is idle
@@ -90,38 +104,50 @@ export type Verdict = { ok: true; note: string } | { ok: false; reason: string; 
 export function approvalVerdict(m: Model): Verdict {
   if (m.place.workspaceError) return { ok: false, reason: m.place.workspaceError, next: WORKSPACE_REPAIR }
   if (!m.governed) return { ok: true, note: 'not governed: no bob/brief.json, gates idle' }
-  if (!m.schema) return { ok: false, reason: 'bob/schema.json is missing or does not parse in the plugin folder', next: 'Ash needs to reinstall BOB' }
-  if (m.parseErrors.length) return { ok: false, reason: m.parseErrors.join('; '), next: 'Ash needs to restore the file from git (git checkout -- <file>), or ask Claude to remove stray typed text if it was never committed. Text typed while a file pane is open lands in the file: Ash needs to close file panes before typing' }
-  if (!m.brief || !m.ledger) return { ok: false, reason: 'bob/brief.json or bob/ledger.json is missing', next: 'Ash needs to: ask Claude to design and adopt this project (the BOB pane offers Adopt once the proposal exists), or restore the files from git' }
+  if (!m.schema) return { ok: false, reason: 'BOB’s own rule file is missing or does not read', next: 'Ash needs to reinstall BOB', detail: 'bob/schema.json is missing or does not parse in the plugin folder' }
+  if (m.parseErrors.length) return { ok: false, reason: 'a BOB record file does not read as it should', next: 'Ash needs to: ask Claude to restore the file from git, or to remove stray typed text if it was never committed. Text typed while a file pane is open lands in the file: close file panes before typing', detail: m.parseErrors.join('; ') }
+  if (!m.brief || !m.ledger) return { ok: false, reason: 'the brief or the ledger is missing', next: 'Ash needs to: ask Claude to design and adopt this project (the BOB pane offers Adopt once the proposal exists), or restore the files from git', detail: 'bob/brief.json or bob/ledger.json is missing' }
   const active = activeIncrement(m)
   if (!active) {
     if (isIdle(m)) return { ok: true, note: `none needed: ${IDLE}` }
     const proposed = ((m.ledger.increments ?? []) as Any[]).find(i => ['proposed', 'approved'].includes(i.state))
     return {
       ok: false,
-      reason: 'no increment in bob/ledger.json has state active',
-      next: proposed ? `Ash needs to: press Approve ${proposed.id} in the BOB pane (a person's click is the only writer of bob/approvals.json)` : 'Ash needs to: ask Claude to propose the next increment, then approve it in the BOB pane',
+      kind: 'unapproved',
+      reason: 'no round is approved yet',
+      next: proposed ? `Ash needs to: press Approve for “${titleOf(proposed)}” in the BOB pane (a person’s click is the only thing that approves)` : 'Ash needs to: ask Claude to propose the next round, then approve it in the BOB pane',
+      detail: `no increment in bob/ledger.json has state active${proposed ? `; ${proposed.id} is ${proposed.state}` : ''}`,
     }
   }
   const inScope = m.approvals.filter(a => (a.scope_increment_ids ?? []).includes(active.id))
   const match = inScope.find(a => a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash))
-  if (match) return { ok: true, note: `${active.id} approved by ${match.id} (${String(match.approver ?? 'unknown')}, ${String(match.approved_at ?? 'unknown time')})` }
+  if (match) return { ok: true, note: `approved by ${String(match.approver ?? 'unknown')}, ${when(match.approved_at)}` }
   if (inScope.length) {
     const ids = inScope.map(a => a.id).join(', ')
     return {
       ok: false,
-      reason: `bob/brief.json changed after approval ${ids}: its hash ${short(m.hash)} matches no approval of ${active.id}`,
-      next: `Ash needs to: press Approve ${active.id} again in the BOB pane, against the current brief (one new record at brief_hash ${m.hash ?? 'unknown'})`,
+      reason: 'the brief changed after this round was approved',
+      next: `Ash needs to: press Approve again for “${titleOf(active)}” in the BOB pane, against the current brief`,
+      detail: `bob/brief.json changed after approval ${ids}: its hash ${short(m.hash)} matches no approval of ${active.id}; a new record at brief_hash ${m.hash ?? 'unknown'} is needed`,
     }
   }
   return {
     ok: false,
-    reason: `no approval record in bob/approvals.json covers ${active.id} at brief hash ${short(m.hash)}`,
-    next: `Ash needs to: press Approve ${active.id} in the BOB pane (one new record in bob/approvals.json with brief_hash ${m.hash ?? 'unknown'})`,
+    reason: 'no approval covers this round at the current brief',
+    next: `Ash needs to: press Approve for “${titleOf(active)}” in the BOB pane`,
+    detail: `no approval record in bob/approvals.json covers ${active.id} at brief hash ${short(m.hash)}`,
   }
 }
 
-export type Row = { id: string; text: string; state: string; known: boolean; evidence: string }
+// Plain words for a requirement where a person reads it: its text, clipped.
+export const clipText = (s: unknown, n = 56): string => {
+  const t = String(s ?? '').trim()
+  return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t
+}
+export const stateWords = (state: string): string =>
+  ({ not_assessed: 'not started', blocked: 'blocked', designed: 'designed', implemented: 'built', reported: 'reported', verified: 'proven', accepted: 'accepted', proposed: 'waiting for approval', approved: 'approved', active: 'in progress', done: 'done', returned: 'returned' } as Record<string, string>)[state] ?? state
+
+export type Row = { id: string; text: string; state: string; known: boolean; evidence: string; proofs: number }
 export type Board = {
   project: string
   workspace: string | null
@@ -133,7 +159,7 @@ export type Board = {
   next: string
   stale: string | null
   rows: Row[]
-  evidence: { id: string; kind: string; requirement: string; at: string }[]
+  evidence: { id: string; kind: string; requirement: string; about: string; at: string }[]
   preflight: Preflight | null
   notes: string[]
 }
@@ -156,11 +182,13 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
     state: String(r.state ?? ''),
     known: states.includes(r.state),
     evidence: evidence.filter(ev => ev.requirement_id === r.id).map(ev => ev.id).join(' '),
+    proofs: evidence.filter(ev => ev.requirement_id === r.id).length,
   }))
+  const textOf = (id: string) => clipText(reqs.find(r => r.id === id)?.text ?? id)
 
   const verdict = m.governed ? approvalVerdict(m) : null
-  const blocked = rows.filter(r => r.state === 'blocked').map(r => r.id)
-  let blocker = blocked.length ? `${blocked.join(', ')} blocked` : 'none'
+  const blocked = rows.filter(r => r.state === 'blocked').map(r => `“${clipText(r.text)}”`)
+  let blocker = blocked.length ? `blocked: ${blocked.join(', ')}` : 'none'
   if (verdict && !verdict.ok) blocker = verdict.reason
 
   const fresh = !m.governed && !m.ownLedger && !m.fixtures
@@ -176,16 +204,16 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
     const toAccept = inScope.find(r => r.state === 'verified')
     const toVerify = inScope.find(r => ['implemented', 'reported'].includes(r.state))
     if (verdict && !verdict.ok) next = verdict.next
-    else if (unproven) next = `Claude: capture evidence for ${unproven.id}`
-    else if (toVerify) next = `Claude: verify ${toVerify.id} against its check`
-    else if (toAccept) next = `Ash needs to: accept or return ${toAccept.id}`
-    else next = `Ash needs to: close ${active.id} and approve the next increment`
+    else if (unproven) next = `Claude: capture proof for “${textOf(unproven.id)}”`
+    else if (toVerify) next = `Claude: verify “${textOf(toVerify.id)}” against its check`
+    else if (toAccept) next = `Ash needs to: accept or return “${textOf(toAccept.id)}”`
+    else next = `Ash needs to: close “${titleOf(active)}” and approve the next round`
   }
 
   let stale: string | null = null
-  if (m.ledgerMtimeMs !== null && lastEventAt !== undefined && m.ledgerMtimeMs < lastEventAt) stale = 'stale: ledger file is older than its last event'
+  if (m.ledgerMtimeMs !== null && lastEventAt !== undefined && m.ledgerMtimeMs < lastEventAt) stale = 'stale: the ledger file is older than its last event'
   const staleRun = runs.find(r => ['running', 'verifying'].includes(r.state) && now - Date.parse(String(r.last_event_at)) > STALE_MS)
-  if (staleRun) stale = `stale, reconciling: run ${staleRun.id} ${staleRun.state} with no event for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Press Close stale run in the BOB pane`
+  if (staleRun) stale = `stale, reconciling: a run has had no news for ${Math.round((now - Date.parse(String(staleRun.last_event_at))) / 1000)}s. Press Close stale run in the BOB pane`
 
   const notes: string[] = []
   if (m.place.workspaceError) notes.push(m.place.workspaceError)
@@ -201,14 +229,14 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
     project: m.place.workspace && !m.place.project ? 'none yet' : `${m.place.project} · ${m.root}`,
     workspace: m.place.workspace ? `${m.place.session} · ${projects.length ? projects.join(', ') : 'no projects yet'}` : null,
     source: m.ownLedger ? m.ledgerPath : m.fixtures ? `${m.ledgerPath} (synthetic)` : 'no ledger yet',
-    increment: active ? `${active.id} · ${active.title ?? ''} · ${active.state}` : idle ? IDLE : 'none active',
-    approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? `${active.approval_id ?? 'none'} (fixture, not checked)` : 'none',
+    increment: active ? `${titleOf(active)} · ${stateWords(String(active.state))}` : idle ? IDLE : 'none active',
+    approval: verdict ? (verdict.ok ? verdict.note : 'missing') : active ? 'fixture, not checked' : 'none',
     task: started ? String(started.detail ?? '') : 'none recorded',
     blocker,
     next,
     stale,
     rows,
-    evidence: evidence.slice(-8).reverse().map(ev => ({ id: String(ev.id), kind: String(ev.kind), requirement: String(ev.requirement_id), at: String(ev.captured_at ?? '') })),
+    evidence: evidence.slice(-8).reverse().map(ev => ({ id: String(ev.id), kind: String(ev.kind), requirement: String(ev.requirement_id), about: textOf(String(ev.requirement_id)), at: String(ev.captured_at ?? '') })),
     preflight: pf,
     notes,
   }
@@ -219,7 +247,7 @@ export const statusText = (b: Board): string =>
     `BOB · Now (${b.source})`,
     `Project: ${b.project}`,
     ...(b.workspace ? [`Workspace: ${b.workspace}`] : []),
-    `Increment: ${b.increment}`,
+    `Round: ${b.increment}`,
     `Approval: ${b.approval}`,
     `Current task: ${b.task}`,
     `Blocker: ${b.blocker}`,
@@ -228,10 +256,10 @@ export const statusText = (b: Board): string =>
     b.preflight ? `Preflight: ${b.preflight.stops.length ? `STOP · ${b.preflight.stops.join(' · ')}` : 'clear'}` : 'Preflight: not run this session',
     '',
     'Board',
-    ...b.rows.map(r => `${r.id} ${r.text} [${r.known ? r.state : `unknown state ${r.state}`}]${r.evidence ? ` ${r.evidence}` : ''}`),
+    ...b.rows.map(r => `${r.text} [${r.known ? stateWords(r.state) : `unknown state ${r.state}`}]${r.proofs ? ` · ${r.proofs === 1 ? 'one proof' : `${r.proofs} proofs`}` : ''}`),
     '',
     'Evidence',
-    ...(b.evidence.length ? b.evidence.map(ev => `${ev.id} · ${ev.kind} · ${ev.requirement} · ${ev.at}`) : ['none']),
+    ...(b.evidence.length ? b.evidence.map(ev => `${ev.kind} for “${ev.about}” · ${when(ev.at)}`) : ['none']),
     ...b.notes,
   ].join('\n')
 
@@ -260,10 +288,10 @@ const stripDoer = (next: string) => next.replace(/^(Ash needs to:?|Claude:?)\s*/
 
 export function renderStatusHtml(b: Board, meta: PageMeta): string {
   const rows = b.rows.length
-    ? b.rows.map(r => `<div class="row"><span class="id">${esc(r.id)}</span><div class="txt">${esc(r.text)}${r.evidence ? `<small>${esc(r.evidence)}</small>` : ''}</div><span class="chip ${chipClass(r)}">${esc(r.known ? r.state.replace('_', ' ') : `unknown state ${r.state}`)}</span></div>`).join('\n')
-    : '<p class="dim">No requirements yet.</p>'
+    ? b.rows.map(r => `<div class="row"><div class="txt">${esc(r.text)}${r.proofs ? `<small>${r.proofs === 1 ? 'one proof on file' : `${r.proofs} proofs on file`}</small>` : ''}</div><span class="chip ${chipClass(r)}">${esc(r.known ? stateWords(r.state) : `unknown state ${r.state}`)}</span></div>`).join('\n')
+    : '<p class="dim">No promises yet.</p>'
   const evidence = b.evidence.length
-    ? b.evidence.map(ev => `<div class="ev"><span class="chip ok">${esc(ev.kind)}</span><div>${esc(ev.id)} for ${esc(ev.requirement)}<br><code>${esc(ev.at)}</code></div></div>`).join('\n')
+    ? b.evidence.map(ev => `<div class="ev"><span class="chip ok">${esc(ev.kind)}</span><div>for “${esc(ev.about)}”<br><code>${esc(when(ev.at))}</code></div></div>`).join('\n')
     : '<p class="dim">None yet. A green chip needs a file captured from a tool result.</p>'
   const preflight = b.preflight ? (b.preflight.stops.length ? `<span class="chip bad">preflight STOP</span> ${esc(b.preflight.stops.join(' · '))}` : '<span class="chip ok">preflight clear</span>') : '<span class="chip dim">preflight not run</span>'
   return `<!doctype html>
@@ -286,13 +314,13 @@ export function renderStatusHtml(b: Board, meta: PageMeta): string {
 section{padding-top:36px}.h{font-family:var(--f-head);font-weight:400;font-size:30px;letter-spacing:.06em;margin-bottom:6px}.sub{color:var(--fg2);margin-bottom:18px;max-width:70ch}
 .app{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px}.panel{background:var(--surface);border:1px solid var(--hair);border-radius:18px;padding:22px;min-width:0}
 .now{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px 24px;margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid var(--hair)}.kv .k{font-family:var(--f-head);letter-spacing:.1em;font-size:14px;color:var(--fg3)}.kv .v{font-weight:600;margin-top:2px;overflow-wrap:anywhere}
-.row{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:6px 14px;align-items:start;padding:14px 0;border-bottom:1px solid var(--hair)}.row:last-child{border-bottom:0}.id{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--fg3);padding-top:3px}.txt{min-width:0}.txt small{display:block;color:var(--fg3);margin-top:2px;font-size:12.5px;overflow-wrap:anywhere}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:start;padding:14px 0;border-bottom:1px solid var(--hair)}.row:last-child{border-bottom:0}.txt{min-width:0}.txt small{display:block;color:var(--fg3);margin-top:2px;font-size:12.5px;overflow-wrap:anywhere}
 .chip{font-family:var(--f-head);letter-spacing:.08em;font-size:15px;line-height:1;padding:6px 12px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;text-transform:uppercase}.ok{color:var(--ok)}.info{color:var(--info)}.warn{color:var(--warn)}.bad{color:var(--bad)}.dim{color:var(--fg3)}
 .next{display:flex;flex-direction:column;gap:14px}.who{font-family:var(--f-head);letter-spacing:.1em;font-size:16px;color:var(--accent)}.next h3{font-size:22px;line-height:1.25;font-weight:600}
 .ev{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;font-size:13.5px;padding:10px 0;border-bottom:1px solid var(--hair)}.ev:last-child{border-bottom:0}.ev code{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--fg3);font-size:12.5px}
 .notes{color:var(--fg3);font-size:13px;margin-top:14px}footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--hair);color:var(--fg3);font-size:13px}
 @media (max-width:820px){.app{grid-template-columns:minmax(0,1fr)}.next{order:-1}}
-@media (max-width:480px){.row{grid-template-columns:minmax(0,1fr) auto}.id{grid-column:1/-1;padding:0}}
+@media (max-width:480px){.row{grid-template-columns:minmax(0,1fr) auto}}
 </style>
 </head>
 <body>
@@ -311,7 +339,7 @@ section{padding-top:36px}.h{font-family:var(--f-head);font-weight:400;font-size:
     <div class="app">
       <div class="panel">
         <div class="now">
-          <div class="kv"><div class="k">INCREMENT</div><div class="v">${esc(b.increment)}</div></div>
+          <div class="kv"><div class="k">ROUND</div><div class="v">${esc(b.increment)}</div></div>
           <div class="kv"><div class="k">APPROVAL</div><div class="v">${esc(b.approval)}</div></div>
           <div class="kv"><div class="k">CURRENT TASK</div><div class="v">${esc(b.task)}</div></div>
           <div class="kv"><div class="k">BLOCKER</div><div class="v">${esc(b.blocker)}</div></div>

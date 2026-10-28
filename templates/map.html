@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: BOB's own approved brand (near-black canvas, white, orange #F75821; Bebas Neue headlines, Instrument Sans body). The buddy bar speaks first, then the map, then the plain-words detail for whatever you tap. */
+/* Layout: BOB's own approved brand (near-black canvas, white, orange #F75821; Bebas Neue headlines, Instrument Sans body). The buddy speaks first (or asks the one question), then the ten-stage map, then the product schematic, then the plain-words detail for whatever you tap. No code, number or hash a person has to decode. */
 :root {
   --bg: #0f0f0f; --surface: #181818; --fg: #ffffff; --muted: #a9a9a9; --line: #2d2d2d;
   --orange: #f75821; --orange-soft: #3a1a0f;
@@ -12,7 +12,6 @@
   --head: "Bebas Neue", "Arial Narrow", Arial, sans-serif;
   --body: "Instrument Sans", Arial, system-ui, sans-serif;
 }
-:root:not([data-theme="dark"]) { }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
   --bg: #ffffff; --surface: #f4f3f1; --fg: #0f0f0f; --muted: #5d5d5d; --line: #dcdad6;
   --orange-soft: #fde6dc; --proven: #1f7a46; --built: #a06a00; --todo: #6d6d6d; color-scheme: light; } }
@@ -28,7 +27,6 @@ body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
 .lockup.on-light { display: none; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .lockup.on-dark { display: none; } :root:not([data-theme="dark"]) .lockup.on-light { display: block; } }
 :root[data-theme="light"] .lockup.on-dark { display: none; } :root[data-theme="light"] .lockup.on-light { display: block; }
-.tag { display: inline-block; margin: 14px 0 0; font: 400 15px/1 var(--head); letter-spacing: .1em; color: var(--orange); border: 1px solid var(--orange); border-radius: 4px; padding: 6px 9px; }
 
 .buddy { display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: center; margin-top: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
 .buddy img { width: 96px; height: 96px; object-fit: contain; }
@@ -40,7 +38,6 @@ body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
 
 .stage { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
 .stage span { font: 400 15px/1 var(--head); letter-spacing: .08em; padding: 8px 11px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
-.stage .done { color: var(--bg); background: var(--proven); border-color: var(--proven); }
 .stage .now { color: #fff; background: var(--orange); border-color: var(--orange); }
 
 h2 { font: 400 28px/1 var(--head); letter-spacing: .04em; margin: 40px 0 6px; }
@@ -49,12 +46,17 @@ h2 { font: 400 28px/1 var(--head); letter-spacing: .04em; margin: 40px 0 6px; }
 svg { display: block; width: 100%; height: auto; }
 svg text { font-family: var(--body); fill: var(--fg); }
 .hub rect { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
-.hub text { font-size: 15px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+.hub text { font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
 .hub .count { font-size: 11px; font-weight: 500; fill: var(--muted); }
+.hub .num { font-size: 11px; font-weight: 600; fill: var(--orange); }
+.hub.lit rect { fill: var(--proven); stroke: var(--proven); }
+.hub.lit text { fill: var(--bg); }
 .hub.sel rect { stroke: var(--orange); stroke-width: 3; }
+.hub.empty rect { stroke-dasharray: 4 3; }
 .hub, .leaf { cursor: pointer; }
 .hub:focus-visible rect, .leaf:focus-visible circle { outline: 2px solid var(--orange); }
 .edge { stroke: var(--line); stroke-width: 1.5; fill: none; }
+.edge.lit { stroke: var(--proven); stroke-width: 2.5; }
 .leaf circle { stroke-width: 2.5; }
 .leaf.proven circle { fill: var(--proven); stroke: var(--proven); }
 .leaf.built circle { fill: var(--bg); stroke: var(--built); }
@@ -64,7 +66,7 @@ svg text { font-family: var(--body); fill: var(--fg); }
 .leaf .tick { stroke: var(--bg); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 4px 4px; font-size: 14px; color: var(--muted); }
 .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 7px; }
-.legend .p { background: var(--proven); } .legend .b { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .legend .t { border: 2px dashed var(--todo); }
+.legend .p { background: var(--proven); } .legend .b { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .legend .t { border: 2px dashed var(--todo); } .legend .l { border-radius: 4px; background: var(--proven); }
 
 .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .picker button { font: 500 14px/1 var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; cursor: pointer; }
@@ -81,11 +83,21 @@ svg text { font-family: var(--body); fill: var(--fg); }
 .detail li span.d { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; }
 .detail li .proven { background: var(--proven); } .detail li .built { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .detail li .todo { border: 2px dashed var(--todo); }
 .detail small { display: block; color: var(--muted); font-size: 13px; }
+
+.schem { display: none; }
+.schem.on { display: block; }
+.screens { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.screen h4 { font: 400 20px/1.05 var(--head); letter-spacing: .03em; margin: 0 0 6px; }
+.screen p { margin: 0 0 4px; font-size: 14px; }
+.screen .k { color: var(--orange); font-weight: 600; }
+.flows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.flows li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: baseline; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 14.5px; }
+.flows .arrow { font: 400 16px/1 var(--head); letter-spacing: .04em; color: var(--orange); white-space: nowrap; }
+
 .next { margin-top: 28px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .next > div { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
 .next .who { font: 400 15px/1 var(--head); letter-spacing: .1em; color: var(--orange); margin-bottom: 8px; }
-.next button { margin-top: 12px; font: 600 15px/1 var(--body); color: #fff; background: var(--orange); border: 0; border-radius: 8px; padding: 13px 18px; cursor: pointer; }
-.next button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .note { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); max-width: 74ch; }
 </style>
 
@@ -96,21 +108,29 @@ svg text { font-family: var(--body); fill: var(--fg); }
   <div class="buddy">
     <img alt="BOB the orange sponge character" src="data:image/png;base64,{{CHAR}}">
     <div>
-      <h1>Hi, I'm BOB. Here's your project.</h1>
-      <p><span id="proj"></span>: <b id="tally"></b> promises are proven.</p>
-      <p><b>Next step:</b> <span id="nextline"></span></p>
-      <p class="you">Tap any dot or branch to see it in plain words.</p>
+      <h1 id="hello"></h1>
+      <p id="tallyline"><span id="proj"></span>: <b id="tally"></b> promises proven, <b id="stageslit"></b> of ten stages lit.</p>
+      <p id="askline" class="you" hidden>Tell Claude in the chat beside this page, in a sentence. The map lights up as each stage is proven.</p>
+      <p id="nextp"><b>Next step:</b> <span id="nextline"></span></p>
+      <p class="you">Tap any stage or dot to read it in plain words.</p>
     </div>
   </div>
 
   <div class="stage"><span class="now" id="round"></span></div>
 
-  <h2>The map</h2>
-  <p class="sub">Every branch is one part of the job. Every dot is one promise BOB made. Dots light up as they are proven.</p>
-  <div class="mapbox"><svg id="map" viewBox="0 0 1000 640" role="img" aria-label="BOB project map: seven branches, each with dots for its promises"></svg></div>
-  <div class="legend"><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, never seen</span><span><i class="t"></i>Not started</span></div>
-  <div class="picker" id="picker" role="group" aria-label="Pick a branch"></div>
+  <h2>The ten stages</h2>
+  <p class="sub">Every stage is one part of the job. Every dot is one promise BOB made. A dot lights when it is proven; a stage lights when every promise in it is proven.</p>
+  <div class="mapbox"><svg id="map" viewBox="0 0 1000 680" role="img" aria-label="BOB project map"></svg></div>
+  <div class="legend"><span><i class="l"></i>Stage lit</span><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
+  <div class="picker" id="picker" role="group" aria-label="Pick a stage"></div>
   <div class="detail" id="detail" aria-live="polite"></div>
+
+  <div class="schem" id="schem">
+    <h2>The product</h2>
+    <p class="sub">The screens this product has, and how information moves between them. Drawn from the brief.</p>
+    <div class="screens" id="screens"></div>
+    <ul class="flows" id="flows"></ul>
+  </div>
 
   <h2>Next step</h2>
   <div class="next"><div><div class="who" id="who"></div><p id="whotext"></p></div></div>
@@ -121,21 +141,22 @@ svg text { font-family: var(--body); fill: var(--fg); }
 <script>window.BOB_MAP = {{DATA}};</script>
 <script>
 const D = window.BOB_MAP;
-const S = { proven: 'Proven', built: 'Built, never seen', todo: 'Not started' };
-const BR = D.branches.map(b => ({ id: b.id, name: b.name, blurb: b.blurb, items: b.items.map(i => [i.state, i.label, i.plain]) }));
+const S = { proven: 'Proven', built: 'Built, not yet proven', todo: 'Not started' };
+const BR = D.branches.map(b => ({ id: b.id, name: b.name, short: b.short || b.name, blurb: b.blurb, lit: !!b.lit, items: b.items.map(i => [i.state, i.label, i.plain]) }));
 const NS = 'http://www.w3.org/2000/svg';
 const svg = document.getElementById('map');
-const cx = 500, cy = 320, R1 = 178, R2 = 268;
-const stepOf = n => (n > 1 ? Math.min(15, ((360 / BR.length) * 0.9) / (n - 1)) : 0);
-let sel = { hub: BR[0].id, leaf: null };
+const cx = 500, cy = 340, R1 = 190, R2 = 285;
+const stepOf = n => (n > 1 ? Math.min(11, ((360 / BR.length) * 0.9) / (n - 1)) : 0);
+let sel = { hub: BR[0] ? BR[0].id : null, leaf: null };
 const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
 const pt = (deg, r) => [cx + r * Math.cos(deg * Math.PI / 180), cy + r * Math.sin(deg * Math.PI / 180) * 0.92];
+svg.setAttribute('aria-label', `BOB project map: ${BR.length} stages, each with dots for its promises`);
 
 function draw() {
   svg.innerHTML = '';
   BR.forEach((b, i) => {
     const a = -90 + i * (360 / BR.length), [hx, hy] = pt(a, R1);
-    el('line', { class: 'edge', x1: cx, y1: cy, x2: hx, y2: hy });
+    el('line', { class: 'edge' + (b.lit ? ' lit' : ''), x1: cx, y1: cy, x2: hx, y2: hy });
     const n = b.items.length;
     b.items.forEach((it, k) => {
       const [lx, ly] = pt(a + (k - (n - 1) / 2) * stepOf(n), R2);
@@ -148,25 +169,28 @@ function draw() {
   BR.forEach((b, i) => {
     const a = -90 + i * (360 / BR.length), [hx, hy] = pt(a, R1);
     const done = b.items.filter(x => x[0] === 'proven').length;
-    const g = el('g', { class: 'hub' + (sel.hub === b.id && !sel.leaf ? ' sel' : ''), tabindex: 0, role: 'button', 'aria-label': `${b.name}, ${done} of ${b.items.length} proven` });
-    el('rect', { x: hx - 68, y: hy - 22, width: 136, height: 44, rx: 22 }, g);
-    const t = el('text', { x: hx, y: hy - 5 }, g); t.textContent = b.name;
-    const c = el('text', { x: hx, y: hy + 11, class: 'count' }, g); c.textContent = `${done} of ${b.items.length} proven`;
+    const count = b.items.length ? `${done} of ${b.items.length} proven` : 'nothing promised here yet';
+    const g = el('g', { class: 'hub' + (b.lit ? ' lit' : '') + (b.items.length ? '' : ' empty') + (sel.hub === b.id && !sel.leaf ? ' sel' : ''), tabindex: 0, role: 'button', 'aria-label': `Stage ${i + 1}, ${b.name}, ${count}` });
+    el('rect', { x: hx - 74, y: hy - 24, width: 148, height: 48, rx: 24 }, g);
+    const nm = el('text', { x: hx - 60, y: hy - 7, class: 'num', 'text-anchor': 'start' }, g); nm.textContent = String(i + 1);
+    const t = el('text', { x: hx + 4, y: hy - 7 }, g); t.textContent = b.short;
+    const c = el('text', { x: hx, y: hy + 11, class: 'count' }, g); c.textContent = count;
     g.onclick = () => pick(b.id, null); g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(b.id, null); } };
     const n = b.items.length;
     b.items.forEach((it, k) => {
       const [lx, ly] = pt(a + (k - (n - 1) / 2) * stepOf(n), R2);
       const lg = el('g', { class: `leaf ${it[0]}` + (sel.leaf === `${b.id}:${k}` ? ' sel' : ''), tabindex: 0, role: 'button', 'aria-label': `${it[1]}: ${S[it[0]]}` });
       el('title', {}, lg).textContent = it[1];
-      el('circle', { cx: lx, cy: ly, r: 17 }, lg);
-      if (it[0] === 'proven') el('path', { class: 'tick', d: `M${lx - 7} ${ly} l5 6 l9 -11` }, lg);
-      if (it[0] === 'built') el('path', { d: `M${lx} ${ly - 11} a11 11 0 0 0 0 22 z` }, lg);
+      el('circle', { cx: lx, cy: ly, r: 15 }, lg);
+      if (it[0] === 'proven') el('path', { class: 'tick', d: `M${lx - 6} ${ly} l4 5 l8 -10` }, lg);
+      if (it[0] === 'built') el('path', { d: `M${lx} ${ly - 10} a10 10 0 0 0 0 20 z` }, lg);
       lg.onclick = () => pick(b.id, `${b.id}:${k}`); lg.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(b.id, `${b.id}:${k}`); } };
     });
   });
 }
 function renderDetail() {
   const b = BR.find(x => x.id === sel.hub), d = document.getElementById('detail');
+  if (!b) { d.innerHTML = ''; return; }
   if (sel.leaf) {
     const k = +sel.leaf.split(':')[1], it = b.items[k];
     d.innerHTML = `<span class="chip ${it[0]}">${S[it[0]]}</span><h3></h3><p></p><p class="sub">Part of: ${b.name}</p>`;
@@ -174,27 +198,49 @@ function renderDetail() {
     return;
   }
   d.innerHTML = `<h3></h3><p class="sub"></p><ul></ul>`;
-  d.querySelector('h3').textContent = b.name; d.querySelector('.sub').textContent = b.blurb;
+  d.querySelector('h3').textContent = b.name; d.querySelector('.sub').textContent = b.blurb + (b.lit ? ' This stage is lit: every promise in it is proven.' : b.items.length ? '' : ' Nothing is promised here yet.');
   const ul = d.querySelector('ul');
   b.items.forEach((it, k) => {
     const li = document.createElement('li'); li.tabIndex = 0;
     li.innerHTML = `<span class="d ${it[0]}"></span><div><strong></strong><small></small></div>`;
-    li.querySelector('strong').textContent = it[1]; li.querySelector('small').textContent = `${S[it[0]]}. ${it[2]}`;
+    li.querySelector('strong').textContent = it[1]; li.querySelector('small').textContent = it[2];
     li.onclick = () => pick(b.id, `${b.id}:${k}`); li.onkeydown = e => { if (e.key === 'Enter') pick(b.id, `${b.id}:${k}`); };
     ul.appendChild(li);
   });
 }
 function renderPicker() {
   const p = document.getElementById('picker'); p.innerHTML = '';
-  BR.forEach(b => { const x = document.createElement('button'); x.type = 'button'; x.textContent = b.name; x.setAttribute('aria-pressed', String(sel.hub === b.id)); x.onclick = () => pick(b.id, null); p.appendChild(x); });
+  BR.forEach((b, i) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = `${i + 1}. ${b.short}`; x.setAttribute('aria-pressed', String(sel.hub === b.id)); x.onclick = () => pick(b.id, null); p.appendChild(x); });
+}
+function renderSchematic() {
+  const s = D.schematic; if (!s || !(s.screens || []).length) return;
+  document.getElementById('schem').classList.add('on');
+  const sc = document.getElementById('screens');
+  (s.screens || []).forEach(x => {
+    const d = document.createElement('div'); d.className = 'screen';
+    d.innerHTML = '<h4></h4><p><span class="k">Shows:</span> <span class="a"></span></p><p><span class="k">You can:</span> <span class="b"></span></p>';
+    d.querySelector('h4').textContent = x.name; d.querySelector('.a').textContent = x.shows; d.querySelector('.b').textContent = x.does;
+    sc.appendChild(d);
+  });
+  const fl = document.getElementById('flows');
+  (s.flows || []).forEach(f => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="arrow"></span><span class="w"></span>';
+    li.querySelector('.arrow').textContent = `${f.from} → ${f.to}`; li.querySelector('.w').textContent = f.what;
+    fl.appendChild(li);
+  });
 }
 function pick(h, l) { sel = { hub: h, leaf: l }; draw(); renderDetail(); renderPicker(); }
+document.getElementById('hello').textContent = D.question ? D.question : "Hi, I'm BOB. Here's your project.";
 document.getElementById('proj').textContent = D.project;
 document.getElementById('tally').textContent = D.proven + ' of ' + D.total;
+document.getElementById('stageslit').textContent = String(BR.filter(b => b.lit).length);
+if (D.question) { document.getElementById('tallyline').hidden = true; document.getElementById('askline').hidden = false; }
 document.getElementById('nextline').textContent = ({ 'ASH NEEDS TO': 'Ash needs to', 'CLAUDE': 'Claude' }[D.next.doer] || D.next.doer) + ': ' + D.next.text;
 document.getElementById('round').textContent = D.round;
 document.getElementById('who').textContent = D.next.doer;
 document.getElementById('whotext').textContent = D.next.text;
-document.getElementById('note').textContent = 'Written by BOB from the project ledger at ' + D.generatedAt + '. Every dot is one requirement; none is set by hand. No percentage is shown. Logo and character are the approved BOB files, resized only.';
-pick(BR[0].id, null);
+document.getElementById('note').textContent = 'Written by BOB from the project records at ' + D.generatedAt + '. Every dot is one promise; none is set by hand. No percentage is shown. Logo and character are the approved BOB files, resized only.';
+renderSchematic();
+if (BR.length) pick(BR[0].id, null);
 </script>

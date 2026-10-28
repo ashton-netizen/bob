@@ -1,12 +1,22 @@
 import type { Any, Board, Model } from './board'
 
-// R-bob-17: the map, BOB's home page (docs/map.html). Pure functions: the
-// page is a view of bob/brief.json and bob/ledger.json, so no state or count on
-// it is typed by hand. The branches for BOB's own project live once, in
-// bob/schema.json (map.branches); any other project gets one branch per round.
+// The map, BOB's home page (docs/map.html). Pure functions: the page is a view
+// of bob/brief.json, bob/ledger.json and bob/map.json, so no state or count on
+// it is typed by hand.
+//
+// Phase one of the rebuild (29 October 2026, Ash's intent): the spine is Ash's
+// ten-stage mind map, listed once in bob/schema.json (map.stages). A project
+// says which promise sits at which stage in bob/map.json (stages: id to stage
+// number), and carries its product schematic there (screens and flows). A stage
+// lights only when every promise in it is proven. Nothing a person reads on the
+// page carries a requirement code, increment number, approval number or hash
+// (R-bob-demo-13): ids stay in the data for Claude and never reach a label.
 
 export type Dot = { id: string; state: 'proven' | 'built' | 'todo'; label: string; plain: string }
-export type Branch = { id: string; name: string; blurb: string; items: Dot[] }
+export type Branch = { id: string; name: string; short: string; blurb: string; lit: boolean; items: Dot[] }
+export type Screen = { name: string; shows: string; does: string }
+export type Flow = { from: string; to: string; what: string }
+export type Schematic = { screens: Screen[]; flows: Flow[] } | null
 export type MapData = {
   project: string
   generatedAt: string
@@ -14,9 +24,13 @@ export type MapData = {
   next: { doer: string; text: string }
   proven: number
   total: number
+  question: string | null
+  schematic: Schematic
   branches: Branch[]
 }
 export type MapAssets = { character: string; dark: string; light: string }
+// bob/map.json: the project's own say on where each promise sits and what the product looks like.
+export type MapFile = { stages?: Record<string, number>; labels?: Record<string, string>; schematic?: Schematic }
 
 const PROVEN = ['verified', 'accepted']
 const BUILT = ['designed', 'implemented', 'reported']
@@ -25,52 +39,82 @@ const BUILT = ['designed', 'implemented', 'reported']
 export const dotState = (state: string, hasEvidence: boolean): Dot['state'] =>
   PROVEN.includes(state) && hasEvidence ? 'proven' : PROVEN.includes(state) || BUILT.includes(state) ? 'built' : 'todo'
 
-const WORDS: Record<Dot['state'], string> = { proven: 'Proven', built: 'Built, never seen', todo: 'Not started' }
+export const WORDS: Record<Dot['state'], string> = { proven: 'Proven', built: 'Built, not yet proven', todo: 'Not started' }
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s)
+const sentence = (s: string) => s.replace(/^./, c => c.toUpperCase())
 
-export function buildMapData(m: Model, b: Board, generatedAt: string): MapData {
+export const QUESTION = 'What do you want to build?'
+
+// Where an unplaced promise goes: the build stage. Named here once so the page
+// can say so in plain words.
+const DEFAULT_STAGE = 8
+
+type Stage = { n: number; name: string; short: string; blurb: string }
+const stagesOf = (m: Model): Stage[] =>
+  ((m.schema?.map?.stages ?? []) as Any[]).map(s => ({ n: Number(s.n), name: String(s.name), short: String(s.short ?? s.name), blurb: String(s.blurb ?? '') }))
+
+const roundWords = (b: Board, m: Model): string => {
+  const active = ((m.ledger?.increments ?? []) as Any[]).find(i => i.state === 'active')
+  if (active) return `Round running: ${String(active.title ?? 'this round')}`
+  if (/^idle/.test(b.increment)) return 'No round running'
+  return 'Waiting for an approval'
+}
+
+export function buildMapData(m: Model, b: Board, generatedAt: string, file: MapFile = {}): MapData {
   const reqs = ((m.brief?.requirements ?? []) as Any[])
   const evidence = ((m.ledger?.evidence ?? []) as Any[])
   const incs = ((m.ledger?.increments ?? []) as Any[])
   const byId = new Map(reqs.map(r => [String(r.id), r]))
-  const dot = (id: string, label?: string): Dot => {
+  const dot = (id: string): Dot => {
     const r = byId.get(id) as Any
-    const ev = evidence.filter(e => e.requirement_id === id).map(e => String(e.id))
-    const state = dotState(String(r.state ?? ''), ev.length > 0)
-    const said = clip(String(r.text ?? ''), 240).replace(/^./, c => c.toUpperCase())
-    const plain = `${WORDS[state]}. ${said}${/[.…]$/.test(said) ? '' : '.'}${ev.length ? ` Evidence: ${ev.join(', ')}.` : ' No evidence recorded yet.'}`
-    return { id, state, label: label ?? clip(String(r.text ?? id), 60), plain }
+    const n = evidence.filter(e => e.requirement_id === id).length
+    const state = dotState(String(r.state ?? ''), n > 0)
+    const said = sentence(clip(String(r.text ?? ''), 240))
+    const proof = n ? ` Proof on file: ${n === 1 ? 'one record' : `${n} records`}.` : ' No proof recorded yet.'
+    const label = file.labels?.[id] ?? sentence(clip(String(r.text ?? ''), 60))
+    return { id, state, label, plain: `${WORDS[state]}. ${said}${/[.…]$/.test(said) ? '' : '.'}${proof}` }
   }
 
-  const themed = ((m.schema?.map?.branches ?? []) as Any[]).filter(br => (br.items ?? []).some((i: Any) => byId.has(String(i.id))))
-  const used = new Set<string>()
+  const stages = stagesOf(m)
   let branches: Branch[]
-  if (themed.length) {
-    branches = themed.map(br => {
-      const items = (br.items as Any[]).filter(i => byId.has(String(i.id))).map(i => { used.add(String(i.id)); return dot(String(i.id), String(i.label)) })
-      return { id: String(br.id), name: String(br.name), blurb: String(br.blurb ?? ''), items }
-    }).filter(br => br.items.length)
+  if (stages.length) {
+    const placed = new Map<number, string[]>()
+    for (const r of reqs) {
+      const n = Number(file.stages?.[String(r.id)] ?? DEFAULT_STAGE)
+      const key = stages.some(s => s.n === n) ? n : DEFAULT_STAGE
+      placed.set(key, [...(placed.get(key) ?? []), String(r.id)])
+    }
+    branches = stages.map(s => {
+      const items = (placed.get(s.n) ?? []).map(dot)
+      return { id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit: items.length > 0 && items.every(d => d.state === 'proven'), items }
+    })
   } else {
+    // No stage list in the schema: one branch per round, named by its title.
+    const used = new Set<string>()
     branches = incs
       .map(i => {
         const ids = ((i.requirement_ids ?? []) as string[]).filter(id => byId.has(id) && !used.has(id))
         ids.forEach(id => used.add(id))
-        return { id: String(i.id), name: String(i.id), blurb: String(i.title ?? ''), items: ids.map(id => dot(id)) }
+        const items = ids.map(dot)
+        const name = String(i.title ?? 'a round')
+        return { id: String(i.id), name, short: clip(name, 24), blurb: '', lit: items.length > 0 && items.every(d => d.state === 'proven'), items }
       })
       .filter(br => br.items.length)
+    const rest = reqs.map(r => String(r.id)).filter(id => !used.has(id))
+    if (rest.length) branches.push({ id: 'other', name: branches.length ? 'Other promises' : 'Promises', short: 'Other', blurb: 'Promises not in any round yet.', lit: false, items: rest.map(dot) })
   }
-  const rest = reqs.map(r => String(r.id)).filter(id => !used.has(id))
-  if (rest.length) branches.push({ id: 'other', name: branches.length ? 'Other' : 'Requirements', blurb: 'Requirements not on a branch above.', items: rest.map(id => dot(id)) })
 
   const all = branches.flatMap(br => br.items)
   const m1 = b.next.match(/^(Ash needs to|Claude):?\s*([\s\S]*)$/i)
   return {
     project: String(m.brief?.project?.name ?? m.place?.project ?? 'this project'),
     generatedAt,
-    round: b.increment,
+    round: roundWords(b, m),
     next: { doer: m1 ? (m1[1].toLowerCase().startsWith('ash') ? 'ASH NEEDS TO' : 'CLAUDE') : 'NEXT', text: m1 ? m1[2] : b.next },
     proven: all.filter(d => d.state === 'proven').length,
     total: all.length,
+    question: all.length ? null : QUESTION,
+    schematic: file.schematic ?? null,
     branches,
   }
 }
@@ -85,24 +129,36 @@ export const renderMap = (template: string, assets: MapAssets, data: MapData): s
     .split('{{DARK}}').join(assets.dark)
     .split('{{LIGHT}}').join(assets.light)
 
-// R-bob-17: a project still being designed has no ledger yet, so its map is the
-// six design stages: a lit dot (built, never proven) for each stage whose file
-// exists, nothing drawn proven, and the next step with its doer.
-export function designMapData(project: string, stages: string[], done: boolean[], generatedAt: string): MapData {
+// A project still being designed has no ledger yet. Its six design stages sit
+// on the same ten-stage spine (capture and understand feed stage one; design the
+// product feeds three; data feeds four; visible feeds five; challenge feeds
+// six): a lit dot (built, never proven) per stage whose file exists, nothing
+// drawn proven, and the next step with its doer. With nothing done yet the
+// page asks the one question.
+const DESIGN_ON_SPINE = [1, 1, 3, 4, 5, 6]
+
+export function designMapData(m: Model, project: string, stages: string[], done: boolean[], generatedAt: string, file: MapFile = {}): MapData {
   const items: Dot[] = stages.map((name, i) => ({
     id: `stage-${i + 1}`,
     state: done[i] ? 'built' : 'todo',
     label: name,
-    plain: `${done[i] ? 'Done: the stage\u2019s file is on disk, not yet proven by evidence.' : 'Not started.'} Design stage ${i + 1} of ${stages.length}.`,
+    plain: `${done[i] ? 'Done: the stage’s file is on disk, not yet proven.' : 'Not started.'} Design step ${i + 1} of ${stages.length}.`,
   }))
   const current = done.findIndex(d => !d)
+  const spine = stagesOf(m)
+  const branches: Branch[] = spine.length
+    ? spine.map(s => ({ id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit: false, items: items.filter((_, i) => DESIGN_ON_SPINE[i] === s.n) }))
+    : [{ id: 'design', name: 'Design steps', short: 'Design', blurb: 'Six steps from your words to an approved design.', lit: false, items }]
+  const started = done.some(Boolean)
   return {
     project,
     generatedAt,
-    round: 'designing',
-    next: current === -1 ? { doer: 'ASH NEEDS TO', text: 'press Adopt this project in the BOB pane, so the build can be approved' } : { doer: 'CLAUDE', text: `finish the design stage \u201c${stages[current]}\u201d` },
+    round: started ? 'Designing' : 'Not started',
+    next: current === -1 ? { doer: 'ASH NEEDS TO', text: 'press Adopt this project in the BOB pane, so the build can be approved' } : { doer: 'CLAUDE', text: `finish the design step “${stages[current]}”` },
     proven: 0,
     total: items.length,
-    branches: [{ id: 'design', name: 'Design stages', blurb: 'Six stages from your words to an approved design.', items }],
+    question: started ? null : QUESTION,
+    schematic: file.schematic ?? null,
+    branches,
   }
 }
