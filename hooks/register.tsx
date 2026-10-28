@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
+import { buildMapData, renderMap } from './map'
 import { STALE_MS, activeIncrement, approvalVerdict, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, statusText } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
@@ -133,8 +134,24 @@ async function writePage($: Engine) {
     const b = describe(m, await read($, preflightAtom), Date.now())
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
     await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
+    await writeMap($, m, b)
   } catch {
     // the page is a view; a failure to write it never blocks a session
+  }
+}
+
+// R-bob-17: docs/map.html, the project as a map. The template and the approved
+// character and lockups ship with the plugin (templates/map.html,
+// assets/bob/web/); the dots come from the records and nothing else.
+async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe>) {
+  try {
+    const template = await readText($, `${$.plugin.root}/templates/map.html`)
+    if (template === null) return
+    const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
+    const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
+    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, buildMapData(m, b, new Date().toISOString())))
+  } catch {
+    // a missing asset never blocks a session; the board page is still written
   }
 }
 
@@ -774,6 +791,13 @@ async function seeEvidence($: Engine, id: string, e: Any) {
   await $.prompt.submit({ text: `Show me the evidence recorded for ${id}: each requirement, its state, and the evidence file behind it, in plain words.`, asUser: true })
 }
 
+// R-bob-17: the map is a file in the repo; a file:// link is plain text on the
+// desktop app, so the button asks Claude to open it in the person's browser.
+async function openMap($: Engine, e: Any) {
+  if (await personRefused($, 'Open the map', e)) return
+  await $.prompt.submit({ text: 'Open docs/map.html in my browser with the open command, then tell me in one line what the map shows: how many dots are proven, and the next step with its doer.', asUser: true })
+}
+
 async function pressPause($: Engine, e: Any) {
   if (await personRefused($, 'Pause', e)) return
   const turnId = await read($, turnAtom)
@@ -1180,6 +1204,12 @@ export const register: Register = on => {
               </Button>
             </Box>
           </Box>
+        ) : null}
+
+        {tracked ? (
+          <Button key="open-map" onPress={press => openMap($, press)}>
+            Open the map
+          </Button>
         ) : null}
 
         {design ? (

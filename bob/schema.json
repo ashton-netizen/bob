@@ -220,6 +220,35 @@
     ],
     "rule": "a connector or unsupported format never shows as ingested merely because a file was attached"
   },
+  "map": {
+    "$comment": "R-bob-17, the one home for the map's branches (the home page docs/map.html). A requirement not listed here still gets a dot, on a branch named Other, so none can vanish. State colours: proven needs state verified or accepted AND an evidence record; built is designed, implemented or reported; todo is anything else.",
+    "branches": [
+      { "id": "idea", "name": "Say your idea", "blurb": "You speak. BOB starts the project. No command.", "items": [
+        { "id": "R-bob-08", "label": "Start a project from plain words" },
+        { "id": "R-bob-11", "label": "Project home in the pane" } ] },
+      { "id": "brief", "name": "Brief & design", "blurb": "BOB asks plain questions and writes the brief and the schematic.", "items": [
+        { "id": "R-bob-13", "label": "Design stages shown" },
+        { "id": "R-bob-07", "label": "Design room first run" } ] },
+      { "id": "approve", "name": "You approve", "blurb": "Nothing is built until a person clicks yes.", "items": [
+        { "id": "R-bob-09", "label": "Only a person can approve" },
+        { "id": "R-bob-12", "label": "Approve or send back by button" },
+        { "id": "R-bob-15", "label": "Approving the next round closes the last" },
+        { "id": "R-bob-06", "label": "Approver and time show at once" } ] },
+      { "id": "rounds", "name": "Locked rounds", "blurb": "Small rounds. No edits without approval. No round ends without proof.", "items": [
+        { "id": "R-bob-00", "label": "BOB is governed by BOB" },
+        { "id": "R-bob-10", "label": "A round cannot end unproven" },
+        { "id": "R-bob-16", "label": "An idle repo does not freeze" } ] },
+      { "id": "report", "name": "Report back", "blurb": "Short, plain and the same every time.", "items": [
+        { "id": "R-bob-01", "label": "Three-line report each round" },
+        { "id": "R-bob-02", "label": "Each decision asked once" },
+        { "id": "R-bob-04", "label": "Board shows when a project opens" } ] },
+      { "id": "guide", "name": "Guide & adopt", "blurb": "BOB points you to the right place and takes on existing builds.", "items": [
+        { "id": "R-bob-14", "label": "Nothing asks you to type a command" },
+        { "id": "R-bob-03", "label": "Wrong window gets pointed to the right one" },
+        { "id": "R-bob-05", "label": "Adopt a repo that already has a ledger" },
+        { "id": "R-bob-17", "label": "This map, generated from the ledger" } ] }
+    ]
+  },
   "gates": {
     "A_approval": "deny Edit, Write and file-writing Bash when no approval has brief_hash == sha256(bob/brief.json) (or scope_hash == the brief's scope hash, see approval.scope_hash) and the active increment in scope_increment_ids; a governed repo whose every increment is done or returned (or that has none) is idle and Gate A allows writes (R-bob-16, 0.9.0), while a proposed or approved increment, an unknown increment state, a brief changed after approval and any file that does not parse still refuse; a Bash write to bob/brief.json is refused outright because the state guard sees Edit and Write only",
     "B_evidence": "block the end of a turn when the active increment's requirement_ids gained no evidence record during this run",

@@ -82,6 +82,18 @@
       "created_at": "2026-10-26T09:45:00+11:00",
       "source": "ai",
       "is_synthetic": false
+    },
+    {
+      "id": "INC-05",
+      "title": "Reset step 3: the map, the BOB home page generated from the ledger (R-bob-17), from wireframe v1",
+      "requirement_ids": [
+        "R-bob-17"
+      ],
+      "state": "active",
+      "approval_id": "AP-08",
+      "created_at": "2026-10-28T14:20:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
     }
   ],
   "runs": [
@@ -521,6 +533,28 @@
       "captured_at": "2026-10-27T22:30:00+11:00",
       "origin": "tool",
       "created_at": "2026-10-27T22:30:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-18",
+      "requirement_id": "R-bob-17",
+      "kind": "test",
+      "ref": "docs/evidence/build-6/B6-map-tests.txt",
+      "captured_at": "2026-10-28T14:02:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T14:02:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-19",
+      "requirement_id": "R-bob-17",
+      "kind": "artefact",
+      "ref": "docs/evidence/build-6/B6-map-seen.txt",
+      "captured_at": "2026-10-28T14:03:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T14:03:00+11:00",
       "source": "tool",
       "is_synthetic": false
     }

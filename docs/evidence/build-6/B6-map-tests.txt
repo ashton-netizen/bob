@@ -1,0 +1,8 @@
+Plugin tests on engine 2.1.308, 28 October 2026, INC-05 (R-bob-17). Red first: 3 map tests failed before the writer existed (no docs/map.html), the button test failed with 'no Button keyed open-map'; green after.
+(pass) R-bob-17: docs/map.html has one dot per requirement, its colour read from the ledger, on the schema branches, with the rest on Other [20.38ms]
+(pass) R-bob-17: a requirement the brief calls verified but with no evidence record is never drawn proven [20.25ms]
+(pass) R-bob-17: the approved character and lockups are embedded unchanged, and text from a brief cannot break out of the page script [20.64ms]
+(pass) R-bob-17: no map is written from fixtures: an ungoverned repo with no ledger of its own gets none [22.14ms]
+(pass) R-bob-17: the pane has an Open the map button that asks Claude to open docs/map.html, in a governed repo [19.14ms]
+ 75 pass
+ 0 fail
