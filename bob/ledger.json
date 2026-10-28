@@ -117,7 +117,7 @@
         "R-bob-02",
         "R-bob-04"
       ],
-      "state": "active",
+      "state": "returned",
       "approval_id": "AP-10",
       "created_at": "2026-10-28T21:00:00+11:00",
       "source": "ai",
