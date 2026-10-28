@@ -1029,10 +1029,15 @@ export const register: Register = on => {
   on('tool.call', { tool: /^(Edit|Write|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
     const m = await load($)
     const v = approvalVerdict(m)
-    if (!v.ok) return { deny: denial('Gate A', v) }
+    // Redraw on a refusal so the pane shows the Approve or Re-approve button
+    // now, not when the turn ends.
+    if (!v.ok) { redraw($); return { deny: denial('Gate A', v) } }
 
     const path = String((e as Any).file_path ?? '')
-    const held = m.governed ? await heldByGateB($, m, isEvidencePath(m, path)) : null
+    // Gate B guards this repo only: a write outside it (a scratch page, a
+    // notes file) is neither held nor counted as an unproven round.
+    const inRepo = path.startsWith(`${m.root}/`)
+    const held = m.governed && inRepo ? await heldByGateB($, m, isEvidencePath(m, path)) : null
     if (held) return { deny: held }
     if (m.governed && isBriefPath(path)) {
       const current = (await readText($, at(m.root, 'bob/brief.json'))) ?? ''
@@ -1049,7 +1054,7 @@ export const register: Register = on => {
       }
     }
 
-    if (m.governed) await update($, touchedAtom, list => [...list, path].slice(-100))
+    if (m.governed && inRepo) await update($, touchedAtom, list => [...list, path].slice(-100))
     redraw($)
     return next(e)
   }).catch(($, e, next) => (next.called ? next(e) : { deny: 'BOB Gate A: its guard failed, so this write is refused. Next action: Claude: report the failure to Ash.' }))
@@ -1062,7 +1067,7 @@ export const register: Register = on => {
       return { deny: 'BOB state guard refused this command: it writes bob/brief.json from Bash, and the state guard (state table, evidence before verified, a person before accepted) only sees Edit or Write. Next action: Claude: change bob/brief.json with Edit or Write.' }
     }
     const v = approvalVerdict(m)
-    if (!v.ok) return { deny: denial('Gate A', v) }
+    if (!v.ok) { redraw($); return { deny: denial('Gate A', v) } }
     // A Bash write counts as evidence only when it names docs/evidence/; the
     // remote checks stay the real line for anything a command hides.
     const held = m.governed ? await heldByGateB($, m, command.includes('docs/evidence/')) : null

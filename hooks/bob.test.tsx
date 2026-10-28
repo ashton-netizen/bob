@@ -371,7 +371,7 @@ test('a repo with bob/ledger.json but no brief shows its own ledger, not synthet
 test('Gate B blocks the end of a round that wrote files but gained no evidence, naming the ids; passes once evidence lands', async ($, on) => {
   const w = await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' })
+  await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' })
 
   const blocked = await $.classic.Stop(stopInput())
   expect(blocked.block ?? '').toContain('Gate B')
@@ -385,6 +385,18 @@ test('Gate B blocks the end of a round that wrote files but gained no evidence, 
   const ledger = LEDGER as { evidence: unknown[] }
   w.ledger = { ...LEDGER, evidence: [...ledger.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T11:00:00+11:00')] }
   expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('Gate B ignores files outside the repo: a scratch write neither blocks the round nor is blocked by an unproven one', async ($, on) => {
+  await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/elsewhere/scratch.md', content: 'x' })
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+
+  await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' })
+  expect((await $.classic.Stop(stopInput())).block ?? '').toContain('Gate B')
+  await $.prompt.submit({ text: 'next round', asUser: true })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/elsewhere/scratch.md', content: 'y' }))).toBe('')
 })
 
 test('Gate B lets a round that wrote nothing end', async ($, on) => {
@@ -1119,11 +1131,11 @@ test('R-bob-10: a round left unproven (its Stop never reached BOB) holds the nex
   const w = await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.turn.start({ text: 'round 1', turnId: 't1' })
-  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' }))).toBe('')
   // No classic.Stop here: another plugin answered it before BOB (seen live 25 and 26 October 2026).
   await $.turn.start({ text: 'round 2', turnId: 't2' })
 
-  const held = said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))
+  const held = said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/other.ts`, content: 'y' }))
   expect(held).toContain('Gate B')
   expect(held).toContain('R-T-03')
   const bash = said(await $.tool.call({ tool: 'Bash', command: 'echo hi > /repo/out.txt' }))
@@ -1135,18 +1147,18 @@ test('R-bob-10: a round left unproven (its Stop never reached BOB) holds the nex
 
   const ledger = LEDGER as { evidence: unknown[] }
   w.ledger = { ...LEDGER, evidence: [...ledger.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T11:00:00+11:00')] }
-  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))).toBe('')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/other.ts`, content: 'y' }))).toBe('')
 })
 
 test('R-bob-10: the one Stop block per round still carries over: a round let end unproven holds the next round', async ($, on) => {
   await approvedWorld(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.turn.start({ text: 'round 1', turnId: 't1' })
-  await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' })
+  await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' })
   expect((await $.classic.Stop(stopInput())).block ?? '').toContain('Gate B')
   expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
   await $.turn.start({ text: 'round 2', turnId: 't2' })
-  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/other.ts', content: 'y' }))).toContain('Gate B')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/other.ts`, content: 'y' }))).toContain('Gate B')
 })
 
 test('R-bob-10: a round that wrote nothing leaves the next round free', async ($, on) => {
@@ -1154,7 +1166,7 @@ test('R-bob-10: a round that wrote nothing leaves the next round free', async ($
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.turn.start({ text: 'round 1', turnId: 't1' })
   await $.turn.start({ text: 'round 2', turnId: 't2' })
-  expect(said(await $.tool.call({ tool: 'Write', file_path: '/repo/src/new.ts', content: 'x' }))).toBe('')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/src/new.ts`, content: 'x' }))).toBe('')
 })
 
 // ---------------------------------------------------------------------------
