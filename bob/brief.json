@@ -234,7 +234,7 @@
       "text": "the BOB home page shows the project as a map generated from bob/brief.json and bob/ledger.json: one branch per group of requirements (the groups live once, in bob/schema.json), one dot per requirement coloured proven, built but never seen, or not started, BOB's approved character and lockup used unchanged, a plain-words detail when a dot or branch is tapped, and the next step with its doer; no state or count on it is typed by hand",
       "check": "plugin test: the page built from the fixture ledger has one dot per requirement carrying the ledger's state; a requirement with no evidence is never drawn proven (red with a hand-edited state, green after); the character and lockup bytes match their sha256 in the brand manifest; the page opens with no network. Then live: Ash opens the page from the pane and says it is the map he approved from wireframe v1",
       "state": "implemented",
-      "evidence_ids": ["E-BOB-18", "E-BOB-19"],
+      "evidence_ids": ["E-BOB-18", "E-BOB-19", "E-BOB-20"],
       "source_ids": ["S-08"],
       "created_at": "2026-10-28T14:20:00+11:00",
       "source": "ai",
