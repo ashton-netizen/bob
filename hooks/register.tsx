@@ -23,6 +23,9 @@ const baselineAtom = atom({ plugin: 'bob', key: 'baseline' } as const, [] as str
 const touchedAtom = atom({ plugin: 'bob', key: 'touched' } as const, [] as string[])
 // Gate B's carry-over (R-bob-10): a round that ended with unproven writes.
 const pendingAtom = atom({ plugin: 'bob', key: 'pending' } as const, null as Pending | null)
+// R-bob-18: set when Gate B takes new evidence into the baseline during a round,
+// so the round that gained it is never judged unproven afterwards.
+const provenAtom = atom({ plugin: 'bob', key: 'proven' } as const, false as boolean)
 // The last pane action's outcome, shown in the pane (R-bob-09).
 const noteAtom = atom({ plugin: 'bob', key: 'note' } as const, null as string | null)
 // The main loop's running turn, for Pause (R-bob-12); null between turns.
@@ -275,9 +278,15 @@ async function adopt($: Engine): Promise<string> {
   if (place.workspaceError) return refusedText('adopt', [place.workspaceError], WORKSPACE_REPAIR)
   if (place.workspace && !place.project) return refusedText('adopt', ['this is the BOB workspace and no project is current, so there is nothing to adopt'], 'Ash needs to: open a project from the Projects box in the BOB pane, or start one there')
   const root = place.root
-  const existing: string[] = []
-  for (const f of BOB_FILES) if (await exists($, at(root, f))) existing.push(f)
-  if (existing.length) return refusedText('adopt', existing.map(f => `${f} already exists; adopt never overwrites a governed repo's files`))
+  // R-bob-05: a repo that already holds a ledger (or sources, or approvals) but no
+  // brief is adopted by merging, never by overwriting. Only bob/brief.json means
+  // the repo is governed already.
+  if (await exists($, at(root, 'bob/brief.json'))) return refusedText('adopt', ["bob/brief.json already exists; adopt never overwrites a governed repo's files"])
+  const priorErrors: string[] = []
+  const priorLedger = (await readJson($, at(root, 'bob/ledger.json'), priorErrors)) as Any | null
+  const priorSources = (await readJson($, at(root, 'bob/sources.json'), priorErrors)) as Any | null
+  if (priorErrors.length) return refusedText('adopt', priorErrors)
+  const hasApprovals = await exists($, at(root, 'bob/approvals.json'))
 
   const text = await readText($, at(root, PROPOSAL_PATH))
   if (text === null) return refusedText('adopt', [`${PROPOSAL_PATH} not found under ${root}. The adopt-under-bob skill writes it`])
@@ -307,10 +316,35 @@ async function adopt($: Engine): Promise<string> {
   }
   const sources: Any = { $comment: 'Written by /bob adopt. access and processing say what was observed; a source nobody opened is never extracted.', sources: p.sources }
 
+  // Merge into what is already there: existing records first and untouched, the
+  // proposal's records after them. A reused id with different content refuses.
+  const clashes: string[] = []
+  const mergeList = (kind: string, prior: Any[], added: Any[]): Any[] => {
+    const byId = new Map(prior.map(r => [String(r.id), JSON.stringify(r)]))
+    const fresh: Any[] = []
+    for (const r of added) {
+      const seen = byId.get(String(r.id))
+      if (seen === undefined) fresh.push(r)
+      else if (seen !== JSON.stringify(r)) clashes.push(`${kind} ${r.id} already exists with different content`)
+    }
+    return [...prior, ...fresh]
+  }
+  const mergedLedger: Any = priorLedger
+    ? {
+        ...priorLedger,
+        increments: mergeList('increment', priorLedger.increments ?? [], ledger.increments),
+        runs: mergeList('run', priorLedger.runs ?? [], ledger.runs),
+        events: mergeList('event', priorLedger.events ?? [], ledger.events),
+        evidence: mergeList('evidence', priorLedger.evidence ?? [], ledger.evidence),
+      }
+    : ledger
+  const mergedSources: Any = priorSources ? { ...priorSources, sources: mergeList('source', priorSources.sources ?? [], sources.sources) } : sources
+  if (clashes.length) return refusedText('adopt', clashes, `Claude: change the ids in ${PROPOSAL_PATH}; Ash then presses Adopt in the BOB pane`)
+
   const wrote: string[] = []
-  await $.fs.write(at(root, 'bob/ledger.json'), pretty(ledger)); wrote.push('bob/ledger.json')
-  await $.fs.write(at(root, 'bob/sources.json'), pretty(sources)); wrote.push('bob/sources.json')
-  await $.fs.write(at(root, 'bob/approvals.json'), pretty({ approvals: [] })); wrote.push('bob/approvals.json')
+  await $.fs.write(at(root, 'bob/ledger.json'), pretty(mergedLedger)); wrote.push('bob/ledger.json')
+  await $.fs.write(at(root, 'bob/sources.json'), pretty(mergedSources)); wrote.push('bob/sources.json')
+  if (!hasApprovals) { await $.fs.write(at(root, 'bob/approvals.json'), pretty({ approvals: [] })); wrote.push('bob/approvals.json') }
   // Last on purpose: Gate A engages the moment this file exists.
   await $.fs.write(at(root, 'bob/brief.json'), pretty(brief)); wrote.push('bob/brief.json')
 
@@ -585,6 +619,7 @@ async function resetRound($: Engine) {
   await update($, baselineAtom, () => ids)
   await update($, touchedAtom, () => [])
   await update($, pendingAtom, () => null)
+  await update($, provenAtom, () => false)
 }
 
 // Evidence the active increment gained since the round's baseline.
@@ -609,6 +644,7 @@ async function carryOver($: Engine) {
     await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
     return
   }
+  if (await read($, provenAtom)) return
   await update($, pendingAtom, () => ({ increment: String(active.id), ids, files: wrote.length }))
 }
 
@@ -625,6 +661,7 @@ async function heldByGateB($: Engine, m: Model, isEvidence: boolean): Promise<st
   if (gained.length) {
     await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
     await update($, pendingAtom, () => null)
+    await update($, provenAtom, () => true)
     redraw($)
     return null
   }
@@ -1023,6 +1060,7 @@ export const register: Register = on => {
     if ((e as Any).agentId !== undefined) return next(e)
     await carryOver($)
     await update($, touchedAtom, () => [])
+    await update($, provenAtom, () => false)
     await update($, turnAtom, () => String((e as Any).turnId ?? '') || null)
     redraw($)
     return next(e)
@@ -1115,7 +1153,7 @@ export const register: Register = on => {
     const ids: string[] = active.requirement_ids ?? []
     const base = new Set(await read($, baselineAtom))
     const gained = evidenceFor(m, ids).filter(ev => !base.has(String(ev.id)))
-    if (gained.length) {
+    if (gained.length || (await read($, provenAtom))) {
       await update($, baselineAtom, list => [...list, ...gained.map(ev => String(ev.id))])
       await update($, touchedAtom, () => [])
       redraw($)

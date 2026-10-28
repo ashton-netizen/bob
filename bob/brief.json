@@ -83,8 +83,8 @@
       "priority": "MUST",
       "text": "/bob adopt accepts a repo that already holds bob/ledger.json, merging increments and never overwriting a record",
       "check": "adopt on this repo writes bob/brief.json and appends increments with every existing ledger record byte-identical",
-      "state": "not_assessed",
-      "evidence_ids": [],
+      "state": "implemented",
+      "evidence_ids": ["E-BOB-24"],
       "source_ids": [
         "S-03"
       ],
@@ -97,8 +97,8 @@
       "priority": "SHOULD",
       "text": "after /bob approve, the pane and the page show the approver and the time within the same turn",
       "check": "the page's APPROVAL field names the AP record",
-      "state": "not_assessed",
-      "evidence_ids": [],
+      "state": "verified",
+      "evidence_ids": ["E-BOB-23"],
       "source_ids": [
         "S-03"
       ],
@@ -237,6 +237,18 @@
       "evidence_ids": ["E-BOB-18", "E-BOB-19", "E-BOB-20", "E-BOB-21"],
       "source_ids": ["S-08"],
       "created_at": "2026-10-28T14:20:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "R-bob-18",
+      "priority": "MUST",
+      "text": "Gate B never holds the next round when the round before it gained evidence: wherever Gate B takes new evidence into its baseline it also clears the list of files written that round, so a proven round is never carried over as unproven",
+      "check": "plugin test: evidence lands mid-round through a write the evidence check allows, the next turn starts, and a source-file write is then allowed (red on 0.10.0 code, green after); the existing R-bob-10 carry-over tests stay green",
+      "state": "verified",
+      "evidence_ids": ["E-BOB-22"],
+      "source_ids": ["S-09"],
+      "created_at": "2026-10-28T19:55:00+11:00",
       "source": "ai",
       "is_synthetic": false
     }

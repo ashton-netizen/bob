@@ -89,9 +89,23 @@
       "requirement_ids": [
         "R-bob-17"
       ],
-      "state": "active",
+      "state": "done",
       "approval_id": "AP-08",
       "created_at": "2026-10-28T14:20:00+11:00",
+      "source": "ai",
+      "is_synthetic": false
+    },
+    {
+      "id": "INC-06",
+      "title": "Last buildable round: the Gate B false positive (R-bob-18), the approver and time on the board (R-bob-06) and adopt on a repo that already has a ledger (R-bob-05)",
+      "requirement_ids": [
+        "R-bob-18",
+        "R-bob-06",
+        "R-bob-05"
+      ],
+      "state": "active",
+      "approval_id": "AP-09",
+      "created_at": "2026-10-28T19:55:00+11:00",
       "source": "ai",
       "is_synthetic": false
     }
@@ -577,6 +591,39 @@
       "captured_at": "2026-10-28T19:00:00+11:00",
       "origin": "tool",
       "created_at": "2026-10-28T19:00:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-22",
+      "requirement_id": "R-bob-18",
+      "kind": "test",
+      "ref": "docs/evidence/build-7/B7-tests.txt",
+      "captured_at": "2026-10-28T20:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T20:20:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-23",
+      "requirement_id": "R-bob-06",
+      "kind": "test",
+      "ref": "docs/evidence/build-7/B7-tests.txt",
+      "captured_at": "2026-10-28T20:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T20:20:00+11:00",
+      "source": "tool",
+      "is_synthetic": false
+    },
+    {
+      "id": "E-BOB-24",
+      "requirement_id": "R-bob-05",
+      "kind": "test",
+      "ref": "docs/evidence/build-7/B7-tests.txt",
+      "captured_at": "2026-10-28T20:20:00+11:00",
+      "origin": "tool",
+      "created_at": "2026-10-28T20:20:00+11:00",
       "source": "tool",
       "is_synthetic": false
     }

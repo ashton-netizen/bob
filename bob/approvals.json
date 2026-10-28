@@ -103,6 +103,19 @@
       "created_at": "2026-10-28T02:59:09.448Z",
       "source": "human",
       "is_synthetic": false
+    },
+    {
+      "id": "AP-09",
+      "brief_hash": "f0a3f5b6b148abc2e28c9070c3bda3196ec92f8bcefc1f54136b993ef9cae6cc",
+      "scope_hash": "01106d301ceab4f60954249caa93c8f337fc4a1176d65a40c82d6aac0949415a",
+      "scope_increment_ids": [
+        "INC-06"
+      ],
+      "approver": "Ashton Bishop",
+      "approved_at": "2026-10-28T08:53:15.193Z",
+      "created_at": "2026-10-28T08:53:15.193Z",
+      "source": "human",
+      "is_synthetic": false
     }
   ]
 }
