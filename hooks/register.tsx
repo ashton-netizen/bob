@@ -161,6 +161,7 @@ async function readPicture($: Engine, m: Model): Promise<{ product: Product | nu
   if (opmlAt !== null && (jsonAt === null || opmlAt > jsonAt + 1000)) {
     const xml = await readText($, opmlPath)
     const edited = xml === null ? null : toProduct(xml, product)
+    if (!edited) await update($, noteAtom, () => 'Your mind map was saved but BOB could not read it as a picture (it needs the seven headings BOB wrote). The last picture stands; press Edit the picture to reopen it.')
     if (edited) {
       product = edited
       editedAt = new Date(opmlAt).toISOString()
@@ -1012,7 +1013,28 @@ async function seeEvidence($: Engine, id: string, e: Any) {
 // desktop app, so the button asks Claude to open it in the person's browser.
 async function openMap($: Engine, e: Any) {
   if (await personRefused($, 'Open the map', e)) return
-  await $.prompt.submit({ text: 'Open docs/map.html in my browser with the open command, then tell me in one line what the map shows: how many dots are proven, and the next step with its doer.', asUser: true })
+  await $.prompt.submit({ text: 'Open docs/map.html in my browser with the open command, then tell me in one line what the map shows: which parts are lit, and the next step with its doer.', asUser: true })
+}
+
+// The picture is the person's to change: one button opens its mind map file
+// in MindNode (R-bob-demo-12, and never a path to hunt for, R-bob-demo-15).
+async function pressEditPicture($: Engine, e: Any) {
+  if (await personRefused($, 'Edit the picture', e)) return
+  const m = await load($)
+  const { product } = await readPicture($, m)
+  if (!product) {
+    await update($, noteAtom, () => 'There is no picture yet: it is drawn when the design reaches the "make it visible" step.')
+    redraw($)
+    return
+  }
+  const path = at(m.root, 'docs/product.opml')
+  try {
+    const ran = await $.process.run(['open', '-a', 'MindNode', path], { cwd: m.root })
+    await update($, noteAtom, () => (ran.exitCode === 0 ? 'The picture is open in MindNode. Change it, save, and BOB redraws at the next turn.' : `MindNode did not open the picture (${String(ran.stderr ?? '').trim() || `exit ${ran.exitCode}`}). The file is docs/product.opml in the project folder.`))
+  } catch {
+    await update($, noteAtom, () => 'MindNode could not be opened from here. The file is docs/product.opml in the project folder.')
+  }
+  redraw($)
 }
 
 async function pressPause($: Engine, e: Any) {
@@ -1519,9 +1541,14 @@ export const register: Register = on => {
         ) : null}
 
         {tracked ? (
-          <Button key="open-map" onPress={press => openMap($, press)}>
-            Open the map
-          </Button>
+          <Box flexDirection="row" gap={2}>
+            <Button key="open-map" onPress={press => openMap($, press)}>
+              Open the picture
+            </Button>
+            <Button key="edit-picture" onPress={press => pressEditPicture($, press)}>
+              Edit the picture
+            </Button>
+          </Box>
         ) : null}
 
         {design ? (

@@ -151,8 +151,10 @@ export function designMapData(m: Model, project: string, stages: string[], done:
   }))
   const current = done.findIndex(d => !d)
   const spine = stagesOf(m)
+  // A stage lights in design once every design step on it is done: the first
+  // answer lights stage one (intent.md, "her answer lights stage one").
   const branches: Branch[] = spine.length
-    ? spine.map(s => ({ id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit: false, items: items.filter((_, i) => DESIGN_ON_SPINE[i] === s.n) }))
+    ? spine.map(s => { const on = items.filter((_, i) => DESIGN_ON_SPINE[i] === s.n); return { id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit: on.length > 0 && on.every(d => d.state === 'built'), items: on } })
     : [{ id: 'design', name: 'Design steps', short: 'Design', blurb: 'Six steps from your words to an approved design.', lit: false, items }]
   const started = done.some(Boolean)
   return {

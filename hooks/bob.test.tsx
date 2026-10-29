@@ -1807,6 +1807,7 @@ test('R-bob-demo-14: a fresh project with nothing started asks the one question 
   expect(data.question).toBe('What do you want to build?')
   expect(data.branches.length).toBe(10)
   expect(data.branches.every(b => !b.lit && b.items.every(d => d.state === 'todo'))).toBe(true)
+  expect(data.question).toBe('What do you want to build?')
   expect(data.round).toBe('Not started')
 })
 
@@ -2026,4 +2027,28 @@ test('R-bob-demo-08: BOB keeps a "Now" block at the top of docs/project-status.m
   // Rewritten in place, never a second block.
   await $.command.run({ command: 'bob', args: '' })
   expect((w.files!['docs/project-status.md'].match(/<!-- BOB now -->/g) ?? []).length).toBe(1)
+})
+
+test('R-bob-demo-14: the first answer lights stage one: a project whose capture and understand steps are done shows stage one lit on the strip', async ($, on) => {
+  const w = await workspaceWorld(on, designedTo(2))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  expect(data.branches[0].lit).toBe(true)
+  expect(data.branches.slice(1).every(b => !b.lit)).toBe(true)
+  expect(data.question).toBe(null)
+})
+
+test('R-bob-demo-12 and 15: Edit the picture is one pane button that opens the mind map in MindNode for the person; the page never names a file to hunt for', async ($, on) => {
+  const product = { name: 'P', nodes: [{ id: 'a', kind: 'step', name: 'A step', says: '', promises: [] }], edges: [] }
+  const w = await approvedWorld(on, { files: { 'bob/product.json': JSON.stringify(product) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'edit-picture' })
+  const opened = w.runs!.find(r => r.argv[0] === 'open' && r.argv.includes('MindNode'))
+  expect(opened).toBeDefined()
+  expect(String(opened!.argv[opened!.argv.length - 1])).toContain('docs/product.opml')
+  expect((await ui.find({ type: 'Text', text: /MindNode/ }))?.text).toContain('open in MindNode')
+  await ui.unmount()
+  const { html } = mapData(w)
+  expect(html).not.toContain('open <code>docs/product.opml')
 })
