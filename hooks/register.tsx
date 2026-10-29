@@ -3,7 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
 import { buildMapData, designMapData, renderMap, QUESTION, type MapData, type MapFile } from './map'
-import { lightUp, toOpml, toProduct, type Product } from './product'
+import { lightUp, toOpml, toProduct, toProductFromMindNode, type Product } from './product'
 import { STALE_MS, activeIncrement, canonical, approvalVerdict, clipText, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, stateWords, statusText, titleOf, when } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
@@ -173,7 +173,50 @@ async function readPicture($: Engine, m: Model): Promise<{ product: Product | nu
   } else if (product && (opmlAt === null || (jsonAt !== null && jsonAt > opmlAt + 1000))) {
     await $.fs.write(opmlPath, toOpml(product))
   }
+  // MindNode's own file, saved wherever MindNode last saved: found by the
+  // product's name with Spotlight, read through plutil. Newer than the picture
+  // file means the person's edits win here too.
+  if (product && jsonAt !== null) {
+    const found = await findMindNodeFile($, String(product.name))
+    if (found && found.at > jsonAt + 1000) {
+      const edited = await readMindNode($, found.path, product)
+      if (edited) {
+        await $.fs.write(at(m.root, 'bob/product.previous.json'), pretty(product))
+        product = edited
+        editedAt = new Date(found.at).toISOString()
+        await $.fs.write(jsonPath, pretty({ $comment: `Read back from your MindNode file (${found.path}) by BOB. Edit either; the newer one wins.`, ...edited }))
+        await update($, noteAtom, () => `Your MindNode changes were read back into the picture (from ${found.path.replace(/^.*\//, '')}).`)
+      } else {
+        await update($, noteAtom, () => 'Your MindNode file was found but BOB could not read it as a picture (it needs the seven headings BOB wrote). The last picture stands.')
+      }
+    }
+  }
   return { product, editedAt }
+}
+
+async function findMindNodeFile($: Engine, name: string): Promise<{ path: string; at: number } | null> {
+  try {
+    const ran = await $.process.run(['mdfind', '-name', `${name}.mindnode`], { cwd: '/' })
+    const paths = String(ran.stdout ?? '').split('\n').map(l => l.trim()).filter(l => l.endsWith('.mindnode'))
+    let best: { path: string; at: number } | null = null
+    for (const p of paths) {
+      const atMs = await mtime($, `${p}/contents.xml`)
+      if (atMs !== null && (!best || atMs > best.at)) best = { path: p, at: atMs }
+    }
+    return best
+  } catch {
+    return null
+  }
+}
+
+async function readMindNode($: Engine, path: string, previous: Product | null): Promise<Product | null> {
+  try {
+    const ran = await $.process.run(['plutil', '-convert', 'xml1', '-o', '-', `${path}/contents.xml`], { cwd: '/' })
+    if (ran.exitCode !== 0) return null
+    return toProductFromMindNode(String(ran.stdout ?? ''), previous)
+  } catch {
+    return null
+  }
 }
 
 async function pictureOf($: Engine, m: Model) {
