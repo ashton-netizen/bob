@@ -135,7 +135,7 @@ summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; 
     <img alt="BOB the orange sponge character" src="data:image/png;base64,{{CHAR}}">
     <div>
       <h1 id="hello"></h1>
-      <p id="tallyline"><span id="proj"></span>: <b id="tally"></b> promises proven, <b id="stageslit"></b> of ten stages lit.</p>
+      <p id="projline"><span id="proj"></span>.</p>
       <p id="askline" class="you" hidden>Tell Claude in the chat beside this page, in a sentence. The map lights up as each stage is proven.</p>
       <p id="nextp"><b>Next step:</b> <span id="nextline"></span></p>
       <p class="you">Tap any box to read it in plain words.</p>
@@ -156,6 +156,7 @@ summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; 
   <h2>Where the build is</h2>
   <p class="sub">The ten stages of the method, lit as each is proven. Progress only; the picture above is the point.</p>
   <div class="strip" id="strip" role="list" aria-label="The ten stages"></div>
+  <p class="sub" id="tallyline" style="margin-top:10px"><b id="tally"></b> promises proven, <b id="stageslit"></b> of ten stages lit.</p>
 
   <details>
     <summary>Every promise, by stage</summary>
@@ -330,14 +331,15 @@ document.getElementById('hello').textContent = D.question ? D.question : "Hi, I'
 document.getElementById('proj').textContent = D.project;
 document.getElementById('tally').textContent = D.proven + ' of ' + D.total;
 document.getElementById('stageslit').textContent = String(BR.filter(b => b.lit).length);
-if (D.question) { document.getElementById('tallyline').hidden = true; document.getElementById('askline').hidden = false; }
+if (D.question) { document.getElementById('projline').hidden = true; document.getElementById('askline').hidden = false; }
 document.getElementById('nextline').textContent = ({ 'ASH NEEDS TO': 'Ash needs to', 'CLAUDE': 'Claude' }[D.next.doer] || D.next.doer) + ': ' + D.next.text;
 document.getElementById('round').textContent = D.round;
 document.getElementById('who').textContent = D.next.doer;
 document.getElementById('whotext').textContent = D.next.text;
-document.getElementById('note').textContent = 'Written by BOB from the project records at ' + D.generatedAt + '. Every dot is one promise; none is set by hand. No percentage is shown. Logo and character are the approved BOB files, resized only.';
+const plainDate = iso => { try { return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) { return iso; } };
+document.getElementById('note').textContent = 'Written by BOB from the project records, ' + plainDate(D.generatedAt) + '. Every dot is one promise; none is set by hand. No percentage is shown. Logo and character are the approved BOB files, resized only.';
 renderSchematic();
 drawPicture(); drawStrip();
-if (D.picture && D.picture.nodes.length) { pickPart(D.picture.nodes[0].id); document.getElementById('editline').innerHTML = '<b>Edit this picture in MindNode:</b> open <code>docs/product.opml</code> in the project folder, change it, save. BOB reads your changes back and redraws.' + (D.picture.editedAt ? ' Last read from your mind map at ' + D.picture.editedAt + '.' : ''); }
+if (D.picture && D.picture.nodes.length) { pickPart(D.picture.nodes[0].id); document.getElementById('editline').innerHTML = '<b>This picture is yours to change:</b> press <b>Edit the picture</b> in the BOB pane and it opens in MindNode. Change it, save, and BOB redraws from your changes.' + (D.picture.editedAt ? ' Last read from your mind map ' + plainDate(D.picture.editedAt) + '.' : ''); }
 if (BR.length) pick(BR[0].id, null);
 </script>
