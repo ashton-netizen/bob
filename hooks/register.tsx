@@ -1036,6 +1036,8 @@ async function openMap($: Engine, e: Any) {
 
 // The picture is the person's to change: one button opens its mind map file
 // in MindNode (R-bob-demo-12, and never a path to hunt for, R-bob-demo-15).
+const MINDNODE_APPS = ['MindNode Classic', 'MindNode']
+
 async function pressEditPicture($: Engine, e: Any) {
   if (await personRefused($, 'Edit the picture', e)) return
   const m = await load($)
@@ -1046,9 +1048,16 @@ async function pressEditPicture($: Engine, e: Any) {
     return
   }
   const path = at(m.root, 'docs/product.opml')
+  // The app is "MindNode Classic" on Ash's Mac (29 October 2026); newer Macs
+  // have "MindNode". Try each; failing both, the system's default for .opml.
   try {
-    const ran = await $.process.run(['open', '-a', 'MindNode', path], { cwd: m.root })
-    await update($, noteAtom, () => (ran.exitCode === 0 ? 'The picture is open in MindNode. Change it, save, and BOB redraws at the next turn.' : `MindNode did not open the picture (${String(ran.stderr ?? '').trim() || `exit ${ran.exitCode}`}). The file is docs/product.opml in the project folder.`))
+    let ran: Any = null
+    for (const app of MINDNODE_APPS) {
+      ran = await $.process.run(['open', '-a', app, path], { cwd: m.root })
+      if (ran.exitCode === 0) break
+    }
+    if (ran && ran.exitCode !== 0) ran = await $.process.run(['open', path], { cwd: m.root })
+    await update($, noteAtom, () => (ran && ran.exitCode === 0 ? 'The picture is open in MindNode. Change it, save, and BOB redraws at the next turn.' : `MindNode did not open the picture (${String(ran?.stderr ?? '').trim() || `exit ${ran?.exitCode}`}). The file is docs/product.opml in the project folder.`))
   } catch {
     await update($, noteAtom, () => 'MindNode could not be opened from here. The file is docs/product.opml in the project folder.')
   }

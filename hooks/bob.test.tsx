@@ -2045,7 +2045,7 @@ test('R-bob-demo-12 and 15: Edit the picture is one pane button that opens the m
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.press({ key: 'edit-picture' })
-  const opened = w.runs!.find(r => r.argv[0] === 'open' && r.argv.includes('MindNode'))
+  const opened = w.runs!.find(r => r.argv[0] === 'open' && r.argv.includes('MindNode Classic'))
   expect(opened).toBeDefined()
   expect(String(opened!.argv[opened!.argv.length - 1])).toContain('docs/product.opml')
   expect((await ui.find({ type: 'Text', text: /MindNode/ }))?.text).toContain('open in MindNode')
