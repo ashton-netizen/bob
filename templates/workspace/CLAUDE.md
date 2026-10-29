@@ -2,7 +2,7 @@
 
 This folder is a BOB workspace, one per machine. Each subfolder is one project. `bob-workspace.json` registers the projects and names the current one. The BOB pane shows the current project.
 
-Written once by `/bob new` from the BOB plugin's template. BOB never overwrites it; edit it freely.
+Written once, when the first project starts, from the BOB plugin's template. BOB never overwrites it; edit it freely.
 
 ## For Claude, every session
 1. Read `bob-workspace.json`. The current project is the entry whose `name` equals `current`. Work only inside that folder. Never edit another project's files.

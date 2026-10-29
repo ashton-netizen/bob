@@ -1996,8 +1996,9 @@ test('R-bob-demo-19: approving the next round refuses to close a fully verified 
   expect(refused).toContain('refused')
   expect(refused).toContain('reviewer')
   expect(refused).toContain('docs/evidence/review/')
-  w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-09', 'R-T-03', '2026-10-21T09:40:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }] }
-  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\nPASS\n'
+  w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-09', 'R-T-03', '2026-10-21T09:40:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }, { ...evidence('E-T-10', 'R-T-04', '2026-10-21T09:41:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_qa_verdict.md' }] }
+  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\n\nVerdict: PASS\n'
+  w.files!['docs/evidence/review/INC-T-2_qa_verdict.md'] = '# QA\n\nVerdict: PASS\n'
   const ok = await approve($, 'INC-T-3')
   expect(ok).not.toContain('refused')
   expect(ok).toContain('closed (done)')
@@ -2073,13 +2074,15 @@ test('QA 1: proposing under a closed gate cannot change any existing round’s s
 test('QA 2 and 3: the reviewer rule holds a round approved after the rule by instant (fractional seconds included), and a verdict is a file that exists, not a record alone', async ($, on) => {
   const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
   const review = { ...evidence('E-T-09', 'R-T-03', '2026-10-29T12:00:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }
-  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00'), review] }
+  const review2 = { ...evidence('E-T-10', 'R-T-04', '2026-10-29T12:01:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_qa_verdict.md' }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00'), review, review2] }
   const w = await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: '2026-10-29T00:46:57.282Z', ...base('human') }] })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   // The record exists but no file: refused.
   expect(await approve($, 'INC-T-3')).toContain('reviewer')
-  // The file exists: closes.
-  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\nPASS WITH FINDINGS\n'
+  // Both files exist: closes.
+  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\n\nVerdict: PASS WITH FINDINGS\n'
+  w.files!['docs/evidence/review/INC-T-2_qa_verdict.md'] = '# QA\n\nVerdict: PASS\n'
   expect(await approve($, 'INC-T-3')).toContain('closed (done)')
 })
 
@@ -2181,4 +2184,135 @@ test('R-bob-demo-12: a new branch the person adds off the centre in MindNode bec
   expect(fromMind.nodes[0].says).toBe('by email')
   expect(fromMind.nodes[0].promises).toEqual(['R-T-01'])
   expect(fromMind.edges).toEqual([{ from: 'a-lead-asks-for-a-price', to: 'check-the-line-against-the-card', what: 'the ask starts a check' }])
+})
+
+// End of phase two, 29 October 2026: the reviewers' second verdicts.
+
+test('R-bob-demo-17: the next step names Ash, not Claude, for a built promise a screen rests on, since only a person’s “I’ve seen this” press can move it', async ($, on) => {
+  const screenRests = { ...PRODUCT, nodes: [...PRODUCT.nodes, { id: 'page', kind: 'screen', name: 'The page', says: '', promises: ['R-T-03'] }] }
+  const brief = { requirements: BRIEF.requirements.map(r => (r.id === 'R-T-04' ? { ...r, state: 'verified', evidence_ids: ['E-T-04'] } : r)) }
+  const ledger = { ...LEDGER, evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  const w = await approvedWorld(on, { brief, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(brief)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }], files: { 'bob/product.json': JSON.stringify(screenRests) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  expect(data.next.doer).toBe('ASH NEEDS TO')
+  expect(data.next.text).toContain('I’ve seen this')
+  expect(data.next.text).toContain('bank')
+})
+
+test('R-bob-demo-17: the same built promise with no screen resting on it stays Claude’s to verify', async ($, on) => {
+  const brief = { requirements: BRIEF.requirements.map(r => (r.id === 'R-T-04' ? { ...r, state: 'verified', evidence_ids: ['E-T-04'] } : r)) }
+  const ledger = { ...LEDGER, evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  const plain = await approvedWorld(on, { brief, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(brief)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }], files: { 'bob/product.json': JSON.stringify(PRODUCT) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(plain)
+  expect(data.next.doer).toBe('CLAUDE')
+  expect(data.next.text).toContain('verify “bank”')
+})
+
+test('R-bob-demo-19: one reviewer’s verdict is not enough to close a round; two are (the product manager and QA)', async ($, on) => {
+  const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  const w = await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: '2026-10-30T10:00:00+11:00', ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-09', 'R-T-03', '2026-10-21T09:40:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_product-manager_verdict.md' }] }
+  w.files!['docs/evidence/review/INC-T-2_product-manager_verdict.md'] = '# Verdict\n\nVerdict: PASS\n'
+  const one = await approve($, 'INC-T-3')
+  expect(one).toContain('refused')
+  expect(one).toContain('two')
+  w.ledger = { ...w.ledger, evidence: [...w.ledger.evidence, { ...evidence('E-T-10', 'R-T-04', '2026-10-21T09:41:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_qa_verdict.md' }] }
+  w.files!['docs/evidence/review/INC-T-2_qa_verdict.md'] = '# QA\n\nVerdict: PASS\n'
+  expect(await approve($, 'INC-T-3')).toContain('closed (done)')
+})
+
+test('R-bob-demo-12: a branch with children that the person adds off the centre in MindNode becomes a part, and its children become parts with arrows from it, none lost', async () => {
+  const xml = toOpml(PRODUCT as any).replace('</outline>\n</body>', '<outline text="A weekly digest"><outline text="To the lead"/><outline text="To the team"/></outline></outline>\n</body>')
+  const back = toProduct(xml, PRODUCT as any)!
+  expect(back.nodes.map(n => n.name)).toEqual(expect.arrayContaining(['A weekly digest', 'To the lead', 'To the team']))
+  expect(back.nodes.find(n => n.name === 'A weekly digest')?.kind).toBe('output')
+  expect(back.nodes.find(n => n.name === 'To the lead')?.kind).toBe('output')
+  expect(back.nodes.length).toBe(PRODUCT.nodes.length + 3)
+})
+
+test('R-bob-demo-14: the first answer lights stage one as started (half), and it is lit once both design steps on it are done', async ($, on) => {
+  const w1 = await workspaceWorld(on, designedTo(1))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const first = (mapData(w1).data.branches as any[])[0]
+  expect(first.half).toBe(true)
+  expect(first.lit).toBe(false)
+})
+
+test('R-bob-demo-14: stage one is lit, not half, once both design steps on it are done', async ($, on) => {
+  const w2 = await workspaceWorld(on, designedTo(2))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const second = (mapData(w2).data.branches as any[])[0]
+  expect(second.lit).toBe(true)
+  expect(second.half).toBe(false)
+})
+
+test('R-bob-demo-12: BOB asks Spotlight for the mind map by its bare name (Spotlight hides the extension), home only, and keeps only a file named exactly after the product', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'bob/product.json': JSON.stringify(PRODUCT) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const find = w.runs!.find(r => r.argv[0] === 'mdfind')
+  expect(find).toBeDefined()
+  expect(find!.argv).toContain('-onlyin')
+  expect(find!.argv[find!.argv.length - 1]).toBe('Rate check')
+  expect(find!.argv.join(' ')).not.toContain('.mindnode')
+})
+
+test('R-bob-demo-12: an apostrophe in a part name survives MindNode’s own file (&apos;), so the part keeps its promises and arrows', () => {
+  const prev = { name: 'P', nodes: [{ id: 'records', kind: 'source', name: "The project's own records", says: '', promises: ['R-T-02'] }, { id: 'check', kind: 'step', name: 'Check it', says: '', promises: [] }], edges: [{ from: 'records', to: 'check', what: '' }] }
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>canvas</key><dict><key>mindMaps</key><array><dict><key>mainNode</key><dict>
+<key>title</key><dict><key>text</key><string>&lt;p&gt;P&lt;/p&gt;</string></dict>
+<key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;What it reads (sources and databases)&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;The project&amp;apos;s own records&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;→ Check it&lt;/p&gt;</string></dict><key>subnodes</key><array/></dict>
+</array></dict></array></dict>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;What it does&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;Check it&lt;/p&gt;</string></dict><key>subnodes</key><array/></dict>
+</array></dict>
+</array></dict></dict></array></dict></dict></plist>`
+  const back = toProductFromMindNode(plist, prev as any)!
+  expect(back.nodes.map(n => n.name)).toEqual(["The project's own records", 'Check it'])
+  expect(back.nodes[0].promises).toEqual(['R-T-02'])
+  expect(back.edges.length).toBe(1)
+})
+
+test('R-bob-demo-12: a part whose name was edited a little (a typo fixed) keeps its promises and kind on read-back', () => {
+  const xml = toOpml(PRODUCT as any).replaceAll('Check the line against the card', 'Check the line against the rate card')
+  const back = toProduct(xml, PRODUCT as any)!
+  const part = back.nodes.find(n => n.name === 'Check the line against the rate card')
+  expect(part?.kind).toBe('step')
+  expect(part?.promises).toEqual(['R-T-03', 'R-T-04'])
+  expect(back.nodes.length).toBe(PRODUCT.nodes.length)
+})
+
+test('R-bob-demo-19: a verdict that reads FAIL or REVISE does not close a round; only PASS does, and a ref that climbs out of the review folder is not a verdict', async ($, on) => {
+  const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const pm = { ...evidence('E-T-09', 'R-T-03', '2026-10-29T12:00:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_pm_verdict.md' }
+  const qa = { ...evidence('E-T-10', 'R-T-04', '2026-10-29T12:01:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/../INC-T-2_qa_verdict.md' }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00'), pm, qa] }
+  const w = await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: '2026-10-30T10:00:00+11:00', ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.files!['docs/evidence/review/INC-T-2_pm_verdict.md'] = '# PM\n\nVerdict: FAIL. Two findings.\n'
+  w.files!['docs/evidence/INC-T-2_qa_verdict.md'] = '# QA\n\nVerdict: PASS.\n'
+  expect(await approve($, 'INC-T-3')).toContain('PASS')
+  w.files!['docs/evidence/review/INC-T-2_pm_verdict.md'] = '# PM\n\nVerdict: PASS WITH FINDINGS. One note.\n'
+  expect(await approve($, 'INC-T-3')).toContain('PASS')
+  w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...qa, id: 'E-T-11', ref: 'docs/evidence/review/INC-T-2_qa_verdict.md' }] }
+  w.files!['docs/evidence/review/INC-T-2_qa_verdict.md'] = '# QA\n\nVerdict: PASS.\n'
+  expect(await approve($, 'INC-T-3')).toContain('closed (done)')
+})
+
+test('R-bob-demo-18: a person’s look is never Claude’s to write: a Write or Edit that adds a human-origin evidence record to the ledger is refused, while a tool-origin one goes through', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const now = '2026-10-29T07:00:00Z'
+  const add = (origin: string) => JSON.stringify({ ...w.ledger, evidence: [...w.ledger!.evidence, { id: 'E-T-20', requirement_id: 'R-T-03', kind: 'screenshot', ref: 'docs/evidence/looks/R-T-03.md', captured_at: now, origin, created_at: now, source: origin === 'human' ? 'human' : 'tool', is_synthetic: false }] })
+  const refused = said(await $.tool.call({ tool: 'Write', file_path: '/adopted/repo/bob/ledger.json', content: add('human') }))
+  expect(refused).toContain('refused')
+  expect(refused).toContain('press')
+  expect(said(await $.tool.call({ tool: 'Write', file_path: '/adopted/repo/bob/ledger.json', content: add('tool') }))).toBe('')
 })

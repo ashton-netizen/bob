@@ -66,7 +66,7 @@ svg text { font-family: var(--body); fill: var(--fg); }
 .leaf .tick { stroke: var(--bg); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 4px 4px; font-size: 14px; color: var(--muted); }
 .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 7px; }
-.legend .p { background: var(--proven); } .legend .b { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .legend .t { border: 2px dashed var(--todo); } .legend .l { border-radius: 4px; background: var(--proven); }
+.legend .p { background: var(--proven); } .legend .b { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .legend .t { border: 2px dashed var(--todo); } .legend .l { border-radius: 4px; background: var(--proven); } .legend .h { border-radius: 4px; border: 2px solid var(--proven); }
 
 .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .picker button { font: 500 14px/1 var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; cursor: pointer; }
@@ -107,6 +107,7 @@ svg text { font-family: var(--body); fill: var(--fg); }
 .strip { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
 .strip span { font: 400 11px/1.2 var(--head); letter-spacing: .04em; text-align: center; padding: 8px 4px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); min-width: 0; overflow: hidden; }
 .strip .lit { color: var(--bg); background: var(--proven); border-color: var(--proven); }
+.strip .half { color: var(--proven); border-color: var(--proven); border-width: 2px; background: transparent; }
 @media (max-width: 720px) { .strip { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 details { margin-top: 28px; }
 summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; color: var(--muted); }
@@ -162,7 +163,7 @@ summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; 
     <summary>Every promise, by stage</summary>
     <p class="sub">Every dot is one promise BOB made. A dot lights when it is proven; a stage lights when every promise in it is proven.</p>
     <div class="mapbox"><svg id="map" viewBox="0 0 1000 680" role="img" aria-label="BOB project map"></svg></div>
-    <div class="legend"><span><i class="l"></i>Stage lit</span><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
+    <div class="legend"><span><i class="l"></i>Stage lit</span><span><i class="h"></i>Stage started</span><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
     <div class="picker" id="picker" role="group" aria-label="Pick a stage"></div>
     <div class="detail" id="detail" aria-live="polite"></div>
   </details>
@@ -184,7 +185,7 @@ summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; 
 <script>
 const D = window.BOB_MAP;
 const S = { proven: 'Proven', built: 'Built, not yet proven', todo: 'Not started' };
-const BR = D.branches.map(b => ({ id: b.id, name: b.name, short: b.short || b.name, blurb: b.blurb, lit: !!b.lit, items: b.items.map(i => [i.state, i.label, i.plain]) }));
+const BR = D.branches.map(b => ({ id: b.id, name: b.name, short: b.short || b.name, blurb: b.blurb, lit: !!b.lit, half: !!b.half, items: b.items.map(i => [i.state, i.label, i.plain]) }));
 const NS = 'http://www.w3.org/2000/svg';
 const svg = document.getElementById('map');
 const cx = 500, cy = 340, R1 = 190, R2 = 285;
@@ -324,7 +325,7 @@ function pickPart(id) {
 }
 function drawStrip() {
   const s = document.getElementById('strip'); s.innerHTML = '';
-  BR.forEach((b, i) => { const x = document.createElement('span'); x.setAttribute('role', 'listitem'); x.className = b.lit ? 'lit' : ''; x.textContent = `${i + 1}. ${b.short}`; x.title = `${b.name}: ${b.items.filter(d => d[0] === 'proven').length} of ${b.items.length} proven`; s.appendChild(x); });
+  BR.forEach((b, i) => { const x = document.createElement('span'); x.setAttribute('role', 'listitem'); x.className = b.lit ? 'lit' : b.half ? 'half' : ''; x.textContent = `${i + 1}. ${b.short}`; x.title = `${b.name}: ${b.items.filter(d => d[0] === 'proven').length} of ${b.items.length} proven`; s.appendChild(x); });
 }
 function pick(h, l) { sel = { hub: h, leaf: l }; draw(); renderDetail(); renderPicker(); }
 document.getElementById('hello').textContent = D.question ? D.question : "Hi, I'm BOB. Here's your project.";

@@ -176,9 +176,13 @@ async function readPicture($: Engine, m: Model): Promise<{ product: Product | nu
   // MindNode's own file, saved wherever MindNode last saved: found by the
   // product's name with Spotlight, read through plutil. Newer than the picture
   // file means the person's edits win here too.
-  if (product && jsonAt !== null) {
-    const found = await findMindNodeFile($, String(product.name))
-    if (found && found.at > jsonAt + 1000) {
+  // Newer than whichever picture was just read: the JSON, or the OPML edit
+  // that replaced it (QA, 29 October 2026: an older MindNode save overwrote a
+  // newer OPML edit).
+  const baseAt = editedAt !== null && opmlAt !== null ? opmlAt : jsonAt
+  if (product && baseAt !== null) {
+    const found = await findMindNodeFile($, String(product.name), m.root)
+    if (found && found.at > baseAt + 1000) {
       const edited = await readMindNode($, found.path, product)
       if (edited) {
         await $.fs.write(at(m.root, 'bob/product.previous.json'), pretty(product))
@@ -194,10 +198,16 @@ async function readPicture($: Engine, m: Model): Promise<{ product: Product | nu
   return { product, editedAt }
 }
 
-async function findMindNodeFile($: Engine, name: string): Promise<{ path: string; at: number } | null> {
+async function findMindNodeFile($: Engine, name: string, root: string): Promise<{ path: string; at: number } | null> {
   try {
-    const ran = await $.process.run(['mdfind', '-name', `${name}.mindnode`], { cwd: '/' })
-    const paths = String(ran.stdout ?? '').split('\n').map(l => l.trim()).filter(l => l.endsWith('.mindnode'))
+    // Spotlight's name is the display name, which hides the extension, so the
+    // query is the bare name and the extension is checked on the path (QA, end
+    // of phase two, 29 October 2026: the query with ".mindnode" found nothing
+    // live). Home only, never the Bin, and the file's own name must match.
+    const home = root.match(/^\/Users\/[^/]+/)?.[0] ?? (root.split('/').slice(0, 2).join('/') || '/')
+    const ran = await $.process.run(['mdfind', '-onlyin', home, '-name', name], { cwd: '/' })
+    const want = `${name}.mindnode`.toLowerCase()
+    const paths = String(ran.stdout ?? '').split('\n').map(l => l.trim()).filter(l => l.toLowerCase().endsWith('.mindnode') && !l.includes('/.Trash/') && (l.split('/').pop() ?? '').toLowerCase() === want)
     let best: { path: string; at: number } | null = null
     for (const p of paths) {
       const atMs = await mtime($, `${p}/contents.xml`)
@@ -237,7 +247,7 @@ async function writePage($: Engine) {
       if (d || (m.place.workspace && m.place.project)) await writeMap($, m, null, designMapData(m, String(m.place?.project ?? 'this project'), STAGES, done, new Date().toISOString(), await readMapFile($, m), await pictureOf($, m)))
       return
     }
-    const b = describe(m, await read($, preflightAtom), Date.now())
+    const b = describe(m, await read($, preflightAtom), Date.now(), await facePromises($, m))
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
     await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }, await pageAssets($)))
     await writeMap($, m, b)
@@ -357,7 +367,7 @@ function proposalRefusals(schema: Any, p: Any): string[] {
   if (!ledger || typeof ledger !== 'object') out.push('proposal.ledger is missing')
   if (!Array.isArray(sources)) out.push('proposal.sources is missing or not an array')
   if (out.length) return out
-  if (Array.isArray(p.approvals) && p.approvals.length) out.push('proposal.approvals must be empty: /bob approve is the only writer of bob/approvals.json')
+  if (Array.isArray(p.approvals) && p.approvals.length) out.push('proposal.approvals must be empty: only a person’s Approve press in the BOB pane writes bob/approvals.json')
 
   const req = schema?.requirement ?? {}
   const states: string[] = req.states ?? []
@@ -529,12 +539,20 @@ async function reviewed($: Engine, m: Model, inc: Any): Promise<boolean> {
   const approval = m.approvals.find(a => a.id === inc.approval_id)
   const at_ = Date.parse(String(approval?.approved_at ?? ''))
   if (!Number.isNaN(at_) && at_ < REVIEW_RULE_FROM_MS) return true
-  const refs = evidenceFor(m, (inc.requirement_ids ?? []) as string[]).map(ev => String(ev.ref ?? '')).filter(r => r.startsWith('docs/evidence/review/'))
+  // Two reviewers (the product manager and QA, or the Karpathy and Bach
+  // prompts), so two distinct non-empty verdict files (product-manager review,
+  // end of phase two, 29 October 2026: one file from one reviewer passed).
+  // Only a verdict that reads PASS (or PASS WITH FINDINGS) closes a round; a
+  // FAIL or REVISE on file is a reason to fix and review again, not to close
+  // (QA, end of phase two, 29 October 2026). A ref that climbs out of the
+  // folder is not a verdict.
+  const refs = [...new Set(evidenceFor(m, (inc.requirement_ids ?? []) as string[]).map(ev => String(ev.ref ?? '')).filter(r => r.startsWith('docs/evidence/review/') && !r.includes('..')))]
+  let passed = 0
   for (const r of refs) {
     const text = await readText($, at(m.root, r))
-    if (text !== null && text.trim().length > 0) return true
+    if (text !== null && /verdict:\s*pass\b/i.test(text.slice(0, 4000))) passed += 1
   }
-  return false
+  return passed >= 2
 }
 
 async function approve($: Engine, idArg: string, originKind: string | undefined): Promise<string> {
@@ -562,7 +580,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
     // verdict on file, an evidence record whose file sits under
     // docs/evidence/review/ (the Infinite Leverage reviewers at stage nine).
     // Rounds approved before this rule (the ledger says so) are exempt.
-    if (!(await reviewed($, m, other))) return refusedText('approve', [`${other.id} has every promise verified but no reviewer's verdict on file: run the reviewers (product manager and QA) on the round and save their verdict as an evidence record with its file under docs/evidence/review/, then approve ${id}`], `Claude: run the reviewers on \u201c${titleOf(other)}\u201d and file the verdict under docs/evidence/review/`)
+    if (!(await reviewed($, m, other))) return refusedText('approve', [`${other.id} has every promise verified but fewer than two reviewers' verdicts reading PASS on file: run both reviewers (product manager and QA) on the round, fix what they find until each verdict reads PASS, and save each as an evidence record with its own file under docs/evidence/review/, then approve ${id}`], `Claude: run the reviewers on \u201c${titleOf(other)}\u201d and file the verdict under docs/evidence/review/`)
   }
   if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
   const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && (a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash)))
@@ -630,7 +648,7 @@ async function placeRefusals($: Engine, place: Place, rules: Any, name: string):
   if (!new RegExp(String(rules.project_name_pattern)).test(name)) out.push(`"${name}" is not a project name: use lowercase letters, digits and hyphens, up to 40 characters, starting with a letter or digit`)
   else if (((rules.reserved_names ?? []) as string[]).includes(name)) out.push(`"${name}" is a reserved name inside a BOB workspace`)
   if (!place.workspace && !place.workspaceError) {
-    if (await exists($, at(place.session, '.git'))) out.push(`${place.session} is a git repo, so it is a project, not the BOB workspace. /bob new and /bob switch run in the workspace folder (one per machine, for example ~/BOB), where each project is a subfolder`)
+    if (await exists($, at(place.session, '.git'))) out.push(`${place.session} is a git repo, so it is a project, not the BOB workspace. Projects start and open from the BOB pane in the workspace folder (one per machine, for example ~/BOB), where each project is a subfolder`)
     else if ((await exists($, at(place.session, 'bob/brief.json'))) || (await exists($, at(place.session, 'bob/ledger.json')))) out.push(`${place.session} holds bob/ files, so it is a project, not the BOB workspace`)
   }
   return out
@@ -715,7 +733,7 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
 
 async function switchProject($: Engine, nameArg: string, originKind: string | undefined): Promise<string> {
   const name = nameArg.trim()
-  if (!name) return refusedText('switch', ['no project name given. Usage: /bob switch <name>'], RETYPE)
+  if (!name) return refusedText('switch', ['no project named. Open a project from the Projects box in the BOB pane'], RETYPE)
   const rules = await workspaceRules($)
   if (!rules) return refusedText('switch', ['bob/schema.json in the plugin folder has no workspace section'], 'Ash needs to reinstall BOB')
   const place = await locate($)
@@ -729,7 +747,7 @@ async function switchProject($: Engine, nameArg: string, originKind: string | un
   return [
     `BOB switch: ${name} is now the current project (${dir}).`,
     ...(added ? [`- registered ${name} in ${WORKSPACE_FILE}: something other than /bob new made the folder (the design room does)`] : []),
-    'The pane, the gates and /bob adopt now work on it. Nothing was committed.',
+    'The pane, the gates and the Adopt button now work on it. Nothing was committed.',
   ].join('\n')
 }
 
@@ -1100,9 +1118,9 @@ async function pressEditPicture($: Engine, e: Any) {
       if (ran.exitCode === 0) break
     }
     if (ran && ran.exitCode !== 0) ran = await $.process.run(['open', path], { cwd: m.root })
-    await update($, noteAtom, () => (ran && ran.exitCode === 0 ? 'The picture is open in MindNode. Change it, save, and BOB redraws at the next turn.' : `MindNode did not open the picture (${String(ran?.stderr ?? '').trim() || `exit ${ran?.exitCode}`}). The file is docs/product.opml in the project folder.`))
+    await update($, noteAtom, () => (ran && ran.exitCode === 0 ? 'The picture is open in MindNode. Change it, save, and BOB redraws at the next turn.' : `MindNode did not open the picture (${String(ran?.stderr ?? '').trim() || `exit ${ran?.exitCode}`}). Press Edit the picture again; if it still does not open, tell Claude and it opens it for you.`))
   } catch {
-    await update($, noteAtom, () => 'MindNode could not be opened from here. The file is docs/product.opml in the project folder.')
+    await update($, noteAtom, () => 'MindNode could not be opened from here. Press Edit the picture again; if it still does not open, tell Claude and it opens it for you.')
   }
   redraw($)
 }
@@ -1337,6 +1355,25 @@ const writesBriefFromBash = (command: string): boolean =>
   segments(command).some(seg => /(^|[\s'"=\/])bob\/brief\.json/.test(seg.raw) && !/^git\b/.test(words(seg.bare).join(' ')) && (segmentWrites(seg) || isInterpreter(seg)))
 
 const isBriefPath = (path: string) => /(^|\/)bob\/brief\.json$/.test(path)
+const isLedgerPath = (path: string) => /(^|\/)bob\/ledger\.json$/.test(path)
+// From this instant a human-origin evidence record comes only from a press in
+// the pane (pressSeen, which writes the file itself); one added by Claude's
+// Write or Edit is refused (QA, end of phase two, 29 October 2026). Records
+// before it stand as they were.
+const LOOK_RULE_FROM_MS = Date.parse('2026-10-29T06:30:00Z')
+function claimedLook(current: string, text: string): string | null {
+  let before: Any = null
+  let after: Any = null
+  try { before = JSON.parse(current || '{}') } catch { before = {} }
+  try { after = JSON.parse(text) } catch { return null }
+  const had = new Set(((before?.evidence ?? []) as Any[]).map(ev => String(ev.id)))
+  for (const ev of (after?.evidence ?? []) as Any[]) {
+    if (had.has(String(ev.id))) continue
+    const madeAt = Date.parse(String(ev.created_at ?? ''))
+    if (String(ev.origin) === 'human' && (Number.isNaN(madeAt) || madeAt >= LOOK_RULE_FROM_MS)) return `it adds ${ev.id} as a person's own look (origin human), and only a press in the BOB pane writes one of those. Record it as origin tool, or leave the look to the person's "I’ve seen this" press`
+  }
+  return null
+}
 
 const parsePreflight = (exitCode: number, stdout: string, stderr: string, at: number): Preflight => {
   const lines = `${stdout}\n${stderr}`.split('\n').map(l => l.trim()).filter(Boolean)
@@ -1370,7 +1407,7 @@ async function bobCommand($: Engine, e: Any): Promise<{ text: string }> {
   if (word === 'switch') return { text: await switchProject($, rest.join(' '), (e as Any).origin?.kind) }
   if (word === 'approve') return { text: await approve($, rest.join(' '), (e as Any).origin?.kind) }
   const m = await load($)
-  return { text: statusText(describe(m, await read($, preflightAtom), Date.now())) }
+  return { text: statusText(describe(m, await read($, preflightAtom), Date.now(), await facePromises($, m))) }
 }
 
 // R-bob-01: the closing report of a round under an active increment is at
@@ -1489,6 +1526,12 @@ export const register: Register = on => {
     const inRepo = path.startsWith(`${m.root}/`)
     const held = m.governed && inRepo ? await heldByGateB($, m, isEvidencePath(m, path)) : null
     if (held) return { deny: held }
+    if (m.governed && isLedgerPath(path)) {
+      const current = (await readText($, at(m.root, 'bob/ledger.json'))) ?? ''
+      const text = proposedText(e as Any, current)
+      const why = text === null ? null : claimedLook(current, text)
+      if (why) return { deny: `BOB state guard refused this write: ${why}.` }
+    }
     if (m.governed && isBriefPath(path)) {
       const current = (await readText($, at(m.root, 'bob/brief.json'))) ?? ''
       const text = proposedText(e as Any, current)
@@ -1567,7 +1610,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Input } = $.ui.resolve(e)
     const m = await load($)
-    const b = describe(m, await read($, preflightAtom), Date.now())
+    const b = describe(m, await read($, preflightAtom), Date.now(), await facePromises($, m))
     const pending = await read($, pendingAtom)
     const note = await read($, noteAtom)
     const turnId = await read($, turnAtom)
