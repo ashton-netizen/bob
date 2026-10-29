@@ -42,5 +42,6 @@ const m = {
   parseErrors: [] as string[],
 }
 const board = describe(m as any, null, Date.now())
-writeFileSync(out, renderStatusHtml(board, { project: m.place.project, generatedAt: new Date().toISOString(), repo: root }))
+const png = (name: string) => readFileSync(join(plugin, 'assets', 'bob', 'web', `${name}.png`)).toString('base64')
+writeFileSync(out, renderStatusHtml(board, { project: m.place.project, generatedAt: new Date().toISOString(), repo: root }, { character: png('character-280'), dark: png('lockup-dark-760'), light: png('lockup-light-760') }))
 console.log(`wrote ${out}: ${board.rows.length} requirements, increment ${board.increment}, next: ${board.next}`)

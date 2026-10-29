@@ -1,6 +1,6 @@
 {
   "name": "bob",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "BOB: designed-first, gated and visible builds for non-technical Steppers. A board pane read from bob/ledger.json, Gate A (no unapproved edit), Gate B (no round ends without evidence), a session preflight, /bob status, /bob new and /bob switch (one BOB workspace per machine, each project a subfolder, the pane and gates on the current project), /bob adopt (govern an existing repo from a validated proposal, brief written last) and /bob approve (a person's typed approval, the only writer of bob/approvals.json), the board page docs/status.html written from the ledger, plus the adopt-under-bob and design-with-bob skills (named so the prompt picker does not match it when a person types /bob adopt).",
   "author": {
     "name": "Step Change"

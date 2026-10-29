@@ -273,11 +273,11 @@ export const statusText = (b: Board): string =>
 // redrawn. No percentage. No state from prose.
 // ---------------------------------------------------------------------------
 
-// The BOB mark: assets/bob/favicon-48.png as base64 (the PNG is the home;
-// regenerate with: base64 -i assets/bob/favicon-48.png | tr -d '\n'). 48 px, 4.6 KB.
-// Inlined so this file has no runtime import and node can run it as is.
-const MARK_PNG_BASE64 = '\n'
-
+// The real BOB files (assets/bob/web/: the character and the two lockups),
+// handed in by the caller as base64, the same ones the map page carries. An
+// empty slot here was a broken image on every status page from 23 to 29
+// October 2026 (Ash: "you didn't render the icon").
+export type PageAssets = { character: string; dark: string; light: string }
 export type PageMeta = { project: string; generatedAt: string; repo: string }
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
@@ -286,7 +286,8 @@ const chipClass = (r: Row) =>
 const doer = (next: string) => (/^Ash needs to/i.test(next) ? 'ASH NEEDS TO' : /^Claude/i.test(next) ? 'CLAUDE' : 'NEXT')
 const stripDoer = (next: string) => next.replace(/^(Ash needs to:?|Claude:?)\s*/i, '')
 
-export function renderStatusHtml(b: Board, meta: PageMeta): string {
+export function renderStatusHtml(b: Board, meta: PageMeta, assets: PageAssets | null = null): string {
+  const img = (b64: string | undefined) => (b64 ? `data:image/png;base64,${b64}` : '')
   const rows = b.rows.length
     ? b.rows.map(r => `<div class="row"><div class="txt">${esc(r.text)}${r.proofs ? `<small>${r.proofs === 1 ? 'one proof on file' : `${r.proofs} proofs on file`}</small>` : ''}</div><span class="chip ${chipClass(r)}">${esc(r.known ? stateWords(r.state) : `unknown state ${r.state}`)}</span></div>`).join('\n')
     : '<p class="dim">No promises yet.</p>'
@@ -300,7 +301,7 @@ export function renderStatusHtml(b: Board, meta: PageMeta): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BOB · ${esc(meta.project)}</title>
-<link rel="icon" type="image/png" href="data:image/png;base64,${MARK_PNG_BASE64}">
+${assets ? `<link rel="icon" type="image/png" href="${img(assets.character)}">` : ''}
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 :root{--bg:#0F0F0F;--surface:#1A1A1A;--surface-2:#242424;--fg1:#FFFFFF;--fg2:rgba(255,255,255,.66);--fg3:rgba(255,255,255,.42);--hair:rgba(255,255,255,.12);--hair-strong:rgba(255,255,255,.22);--accent:#F75821;--grad:linear-gradient(90deg,#F75821,#FA381E,#FF1900);--ok:#6DCC6F;--warn:#FF9900;--info:#01DDE8;--bad:#F40219;--f-head:"Bebas Neue","Arial Narrow",Arial,sans-serif;--f-body:"Instrument Sans",Arial,Helvetica,sans-serif;color-scheme:dark}
@@ -309,7 +310,7 @@ export function renderStatusHtml(b: Board, meta: PageMeta): string {
 .wrap{max-width:1180px;margin:0 auto}h1,h2,h3,p{margin:0}
 .eyebrow{font-family:var(--f-head);letter-spacing:.12em;font-size:15px;color:var(--fg3);text-transform:uppercase}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:20px 0;border-bottom:1px solid var(--hair)}
-.brand{display:flex;align-items:center;gap:12px}.brand img{width:44px;height:44px;display:block}.brand b{font-family:var(--f-head);font-weight:400;font-size:30px;letter-spacing:.06em;line-height:1}.brand span{color:var(--fg3);font-size:13px}
+.brand{display:flex;align-items:center;gap:14px}.brand img.char{width:56px;height:56px;display:block;object-fit:contain}.brand img.lockup{height:44px;width:auto;display:block}.brand img.on-light{display:none}@media (prefers-color-scheme: light){.brand img.on-dark{display:none}.brand img.on-light{display:block}}.brand b{font-family:var(--f-head);font-weight:400;font-size:30px;letter-spacing:.06em;line-height:1}.brand span{color:var(--fg3);font-size:13px}
 .hero{padding:40px 0 28px}.hero h1{font-family:var(--f-head);font-weight:400;font-size:clamp(44px,7vw,84px);line-height:.95}.hero h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{color:var(--fg2);max-width:60ch;margin-top:14px;font-size:17px}
 section{padding-top:36px}.h{font-family:var(--f-head);font-weight:400;font-size:30px;letter-spacing:.06em;margin-bottom:6px}.sub{color:var(--fg2);margin-bottom:18px;max-width:70ch}
 .app{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px}.panel{background:var(--surface);border:1px solid var(--hair);border-radius:18px;padding:22px;min-width:0}
@@ -326,7 +327,7 @@ section{padding-top:36px}.h{font-family:var(--f-head);font-weight:400;font-size:
 <body>
 <div class="wrap">
   <header class="bar">
-    <div class="brand"><img alt="BOB" src="data:image/png;base64,${MARK_PNG_BASE64}"><div><b>BOB</b><br><span>Build Optimisation Buddy · by Step Change</span></div></div>
+    <div class="brand">${assets ? `<img class="char" alt="BOB the orange sponge character" src="${img(assets.character)}"><img class="lockup on-dark" alt="BOB, Build Optimisation Buddy, by Step Change" src="${img(assets.dark)}"><img class="lockup on-light" alt="BOB, Build Optimisation Buddy, by Step Change" src="${img(assets.light)}">` : `<div><b>BOB</b><br><span>Build Optimisation Buddy · by Step Change</span></div>`}</div>
     <span class="chip dim">${esc(meta.project)}</span>
   </header>
   <div class="hero">
