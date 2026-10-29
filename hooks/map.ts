@@ -14,7 +14,7 @@ import type { Picture } from './product'
 // (R-bob-demo-13): ids stay in the data for Claude and never reach a label.
 
 export type Dot = { id: string; state: 'proven' | 'built' | 'todo'; label: string; plain: string }
-export type Branch = { id: string; name: string; short: string; blurb: string; lit: boolean; items: Dot[] }
+export type Branch = { id: string; name: string; short: string; blurb: string; lit: boolean; half?: boolean; items: Dot[] }
 export type Screen = { name: string; shows: string; does: string }
 export type Flow = { from: string; to: string; what: string }
 export type Schematic = { screens: Screen[]; flows: Flow[] } | null
@@ -151,10 +151,11 @@ export function designMapData(m: Model, project: string, stages: string[], done:
   }))
   const current = done.findIndex(d => !d)
   const spine = stagesOf(m)
-  // A stage lights in design once every design step on it is done: the first
-  // answer lights stage one (intent.md, "her answer lights stage one").
+  // A stage lights in design once every design step on it is done, and shows
+  // half lit as soon as one is: the first answer lights stage one (intent.md,
+  // "her answer lights stage one"; product-manager review, 29 October 2026).
   const branches: Branch[] = spine.length
-    ? spine.map(s => { const on = items.filter((_, i) => DESIGN_ON_SPINE[i] === s.n); return { id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit: on.length > 0 && on.every(d => d.state === 'built'), items: on } })
+    ? spine.map(s => { const on = items.filter((_, i) => DESIGN_ON_SPINE[i] === s.n); const lit = on.length > 0 && on.every(d => d.state === 'built'); return { id: `stage-${s.n}`, name: s.name, short: s.short, blurb: s.blurb, lit, half: !lit && on.some(d => d.state === 'built'), items: on } })
     : [{ id: 'design', name: 'Design steps', short: 'Design', blurb: 'Six steps from your words to an approved design.', lit: false, items }]
   const started = done.some(Boolean)
   return {

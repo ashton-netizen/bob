@@ -117,7 +117,28 @@ export function toProduct(xml: string, previous: Product | null): Product | null
   // had before by name, else the group's heading if known, else a step. A part
   // nested under a part is read as a part of the same kind (one level only was
   // read before and the rest was dropped: QA, 29 October 2026).
-  const prevByName = (name: string) => previous?.nodes.find(n => n.name.trim().toLowerCase() === name.trim().toLowerCase())
+  const prevByName = (name: string) => previous?.nodes.find(n => n.name.trim().toLowerCase() === name.trim().toLowerCase()) ?? nearest(name)
+  // A part whose name was edited a little (a typo fixed, a word changed) keeps
+  // its promises and kind: a previous part that no longer appears by name and
+  // shares most of its words is the same part (QA, 29 October 2026: a
+  // spelling fix read back as a new part and dropped two promises).
+  const texts = new Set<string>()
+  const walk = (o: Outline) => { texts.add(o.text.trim().toLowerCase()); o.children.forEach(walk) }
+  top.forEach(walk)
+  const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2))
+  function nearest(name: string): Node | undefined {
+    const w = words(name)
+    if (!previous || w.size < 2) return undefined
+    let best: { n: Node; score: number } | undefined
+    for (const n of previous.nodes) {
+      if (texts.has(n.name.trim().toLowerCase())) continue
+      const v = words(n.name)
+      const common = [...w].filter(x => v.has(x)).length
+      const score = common / Math.max(w.size, v.size)
+      if (score >= 0.6 && (!best || score > best.score)) best = { n, score }
+    }
+    return best?.n
+  }
   const addPart = (leaf: Outline, kind: Kind) => {
     if (leaf.text.startsWith('\u2192') || !leaf.text.trim()) return
     let id = slug(leaf.text)
@@ -134,7 +155,10 @@ export function toProduct(xml: string, previous: Product | null): Product | null
     const known = KINDS.find(k => k.heading === g.text)?.kind
     // A new branch off the centre with nothing under it is a part the person
     // added (Ash, 29 October 2026: an outcome, so "what it produces").
-    if (!known && !g.children.length && !g.text.startsWith('\u2192')) { addPart(g, prevByName(g.text)?.kind ?? 'output'); continue }
+    // With children under it that were never parts before, the branch and its
+    // children are all new parts (product-manager review, 29 October 2026: the
+    // branch itself was lost and only its children were read).
+    if (!known && !g.text.startsWith('\u2192') && !g.children.some(c => prevByName(c.text))) { addPart(g, prevByName(g.text)?.kind ?? 'output'); continue }
     const kind: Kind = known ?? (g.children.map(c => prevByName(c.text)?.kind).find(Boolean) as Kind | undefined) ?? 'step'
     for (const leaf of g.children) addPart(leaf, kind)
   }
@@ -213,7 +237,7 @@ export function plistXml(xml: string): PlistValue | null {
 
 const plainTitle = (t: PlistValue | undefined): string => {
   const raw = t && typeof t === 'object' && !Array.isArray(t) ? String((t as Any).text ?? '') : String(t ?? '')
-  return raw.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim()
+  return raw.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'").trim()
 }
 
 // The picture read back from MindNode's own file (its XML plist form).

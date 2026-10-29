@@ -164,7 +164,10 @@ export type Board = {
   notes: string[]
 }
 
-export function describe(m: Model, pf: Preflight | null, now: number): Board {
+// `face`: the promises a screen in bob/product.json rests on. A built one with
+// no person's look on record is Ash's "I've seen this" press, never Claude's
+// verify (seen on the live picture page, 29 October 2026, 4:15 pm).
+export function describe(m: Model, pf: Preflight | null, now: number, face: Set<string> = new Set()): Board {
   const states: string[] = m.schema?.requirement?.states ?? []
   const reqs = ((m.brief?.requirements ?? []) as Any[])
   const evidence = ((m.ledger?.evidence ?? []) as Any[])
@@ -202,10 +205,14 @@ export function describe(m: Model, pf: Preflight | null, now: number): Board {
     const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
     const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
     const toAccept = inScope.find(r => r.state === 'verified')
-    const toVerify = inScope.find(r => ['implemented', 'reported'].includes(r.state))
+    const needsLook = (r: Any) => face.has(r.id) && !evidence.some(ev => ev.requirement_id === r.id && ev.origin === 'human')
+    const built = inScope.filter(r => ['implemented', 'reported'].includes(r.state))
+    const toVerify = built.find(r => !needsLook(r))
+    const toSee = built.find(needsLook)
     if (verdict && !verdict.ok) next = verdict.next
     else if (unproven) next = `Claude: capture proof for “${textOf(unproven.id)}”`
     else if (toVerify) next = `Claude: verify “${textOf(toVerify.id)}” against its check`
+    else if (toSee) next = `Ash needs to: press I’ve seen this for “${textOf(toSee.id)}” in the BOB pane`
     else if (toAccept) next = `Ash needs to: accept or return “${textOf(toAccept.id)}”`
     else next = `Ash needs to: close “${titleOf(active)}” and approve the next round`
   }
