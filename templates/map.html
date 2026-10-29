@@ -84,6 +84,32 @@ svg text { font-family: var(--body); fill: var(--fg); }
 .detail li .proven { background: var(--proven); } .detail li .built { border: 2px solid var(--built); background: linear-gradient(90deg, var(--built) 50%, transparent 50%); } .detail li .todo { border: 2px dashed var(--todo); }
 .detail small { display: block; color: var(--muted); font-size: 13px; }
 
+/* The picture: the product's flowchart, columns by kind, boxes lit from proof. */
+.pic { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; overflow-x: auto; }
+.pic svg { min-width: 900px; }
+.pbox rect { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.pbox.built rect { stroke: var(--built); stroke-width: 2.5; }
+.pbox.proven rect { fill: var(--proven); stroke: var(--proven); }
+.pbox.proven text { fill: var(--bg); }
+.pbox.todo rect { stroke-dasharray: 4 3; }
+.pbox.sel rect { stroke: var(--orange); stroke-width: 3; }
+.pbox text { font-size: 12.5px; font-weight: 600; }
+.pbox .k { font-size: 10px; font-weight: 500; fill: var(--muted); letter-spacing: .06em; }
+.pbox.proven .k { fill: var(--bg); }
+.pbox { cursor: pointer; }
+.pbox:focus-visible rect { outline: 2px solid var(--orange); }
+.col { font: 400 13px/1 var(--head); letter-spacing: .1em; fill: var(--muted); }
+.arrow { stroke: var(--line); stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+.arrow.lit { stroke: var(--proven); stroke-width: 2; }
+#ah path { fill: var(--line); }
+.edit { margin-top: 10px; font-size: 14px; color: var(--muted); max-width: 74ch; }
+.edit b { color: var(--fg); font-weight: 600; }
+.strip { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+.strip span { font: 400 11px/1.2 var(--head); letter-spacing: .04em; text-align: center; padding: 8px 4px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); min-width: 0; overflow: hidden; }
+.strip .lit { color: var(--bg); background: var(--proven); border-color: var(--proven); }
+@media (max-width: 720px) { .strip { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+details { margin-top: 28px; }
+summary { cursor: pointer; font: 400 22px/1 var(--head); letter-spacing: .04em; color: var(--muted); }
 .schem { display: none; }
 .schem.on { display: block; }
 .screens { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
@@ -112,18 +138,33 @@ svg text { font-family: var(--body); fill: var(--fg); }
       <p id="tallyline"><span id="proj"></span>: <b id="tally"></b> promises proven, <b id="stageslit"></b> of ten stages lit.</p>
       <p id="askline" class="you" hidden>Tell Claude in the chat beside this page, in a sentence. The map lights up as each stage is proven.</p>
       <p id="nextp"><b>Next step:</b> <span id="nextline"></span></p>
-      <p class="you">Tap any stage or dot to read it in plain words.</p>
+      <p class="you">Tap any box to read it in plain words.</p>
     </div>
   </div>
 
   <div class="stage"><span class="now" id="round"></span></div>
 
-  <h2>The ten stages</h2>
-  <p class="sub">Every stage is one part of the job. Every dot is one promise BOB made. A dot lights when it is proven; a stage lights when every promise in it is proven.</p>
-  <div class="mapbox"><svg id="map" viewBox="0 0 1000 680" role="img" aria-label="BOB project map"></svg></div>
-  <div class="legend"><span><i class="l"></i>Stage lit</span><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
-  <div class="picker" id="picker" role="group" aria-label="Pick a stage"></div>
-  <div class="detail" id="detail" aria-live="polite"></div>
+  <div id="picsec" hidden>
+    <h2 id="picname">What we are building</h2>
+    <p class="sub">The product itself: what starts it, what comes in, what it reads, what it does, what it decides, what it produces, what it shows. A box lights when that part is built and proven. Tap a box to read it.</p>
+    <div class="pic"><svg id="pic" role="img" aria-label="The product as a flowchart"></svg></div>
+    <div class="legend"><span><i class="p"></i>Built and proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
+    <div class="detail" id="pdetail" aria-live="polite"></div>
+    <p class="edit" id="editline"></p>
+  </div>
+
+  <h2>Where the build is</h2>
+  <p class="sub">The ten stages of the method, lit as each is proven. Progress only; the picture above is the point.</p>
+  <div class="strip" id="strip" role="list" aria-label="The ten stages"></div>
+
+  <details>
+    <summary>Every promise, by stage</summary>
+    <p class="sub">Every dot is one promise BOB made. A dot lights when it is proven; a stage lights when every promise in it is proven.</p>
+    <div class="mapbox"><svg id="map" viewBox="0 0 1000 680" role="img" aria-label="BOB project map"></svg></div>
+    <div class="legend"><span><i class="l"></i>Stage lit</span><span><i class="p"></i>Proven</span><span><i class="b"></i>Built, not yet proven</span><span><i class="t"></i>Not started</span></div>
+    <div class="picker" id="picker" role="group" aria-label="Pick a stage"></div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </details>
 
   <div class="schem" id="schem">
     <h2>The product</h2>
@@ -230,6 +271,60 @@ function renderSchematic() {
     fl.appendChild(li);
   });
 }
+const KINDS = [['trigger', 'STARTS IT'], ['input', 'COMES IN'], ['source', 'IT READS'], ['step', 'IT DOES'], ['decision', 'IT DECIDES'], ['output', 'IT PRODUCES'], ['screen', 'IT SHOWS']];
+const LW = { proven: 'Built and proven', built: 'Built, not yet proven', todo: 'Not started', none: 'Nothing promised on this yet' };
+let psel = null;
+function drawPicture() {
+  const P = D.picture; if (!P || !P.nodes.length) return;
+  document.getElementById('picsec').hidden = false;
+  document.getElementById('picname').textContent = 'What we are building: ' + P.name;
+  const svg = document.getElementById('pic'); svg.innerHTML = '';
+  const cols = KINDS.filter(k => P.nodes.some(n => n.kind === k[0]));
+  const colW = 150, gap = 36, bw = 128, bh = 54, rowH = 76, top = 44;
+  const rows = Math.max(...cols.map(k => P.nodes.filter(n => n.kind === k[0]).length));
+  const W = cols.length * (colW + gap) + 20, H = top + rows * rowH + 20;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const mk = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const defs = mk('defs', {}); const mkr = mk('marker', { id: 'ah', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs); mk('path', { d: 'M0 0 L10 5 L0 10 z' }, mkr);
+  const pos = {};
+  cols.forEach((k, ci) => {
+    const x = 10 + ci * (colW + gap);
+    const t = mk('text', { x: x + bw / 2, y: 22, class: 'col', 'text-anchor': 'middle' }); t.textContent = k[1];
+    P.nodes.filter(n => n.kind === k[0]).forEach((n, ri) => { pos[n.id] = { x, y: top + ri * rowH, n }; });
+  });
+  P.edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to]; if (!a || !b) return;
+    const x1 = a.x + bw, y1 = a.y + bh / 2, x2 = b.x, y2 = b.y + bh / 2;
+    const back = x2 <= x1;
+    const d = back ? `M${a.x + bw / 2} ${a.y + bh} C ${a.x + bw / 2} ${a.y + bh + 40}, ${b.x + bw / 2} ${b.y + bh + 40}, ${b.x + bw / 2} ${b.y + bh}` : `M${x1} ${y1} C ${x1 + gap / 2} ${y1}, ${x2 - gap / 2} ${y2}, ${x2} ${y2}`;
+    const lit = a.n.light === 'proven' && b.n.light === 'proven';
+    const p = mk('path', { class: 'arrow' + (lit ? ' lit' : ''), d }); mk('title', {}, p).textContent = `${a.n.name} → ${b.n.name}${e.what ? ': ' + e.what : ''}`;
+  });
+  Object.values(pos).forEach(({ x, y, n }) => {
+    const g = mk('g', { class: `pbox ${n.light}` + (psel === n.id ? ' sel' : ''), tabindex: 0, role: 'button', 'aria-label': `${n.name}: ${LW[n.light]}` });
+    mk('rect', { x, y, width: bw, height: bh, rx: 10 }, g);
+    const words = n.name.split(' '); const l1 = [], l2 = [];
+    words.forEach(w => ((l1.join(' ') + ' ' + w).trim().length <= 18 && !l2.length ? l1.push(w) : l2.push(w)));
+    const t1 = mk('text', { x: x + 10, y: y + (l2.length ? 22 : 30) }, g); t1.textContent = l1.join(' ');
+    if (l2.length) { const t2 = mk('text', { x: x + 10, y: y + 40 }, g); t2.textContent = l2.join(' ').length > 20 ? l2.join(' ').slice(0, 19) + '…' : l2.join(' '); }
+    g.onclick = () => pickPart(n.id); g.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pickPart(n.id); } };
+  });
+}
+function pickPart(id) {
+  psel = id; drawPicture();
+  const P = D.picture, n = P.nodes.find(x => x.id === id), d = document.getElementById('pdetail');
+  const outs = P.edges.filter(e => e.from === id).map(e => `→ ${P.nodes.find(x => x.id === e.to)?.name}${e.what ? ': ' + e.what : ''}`);
+  const ins = P.edges.filter(e => e.to === id).map(e => `← ${P.nodes.find(x => x.id === e.from)?.name}${e.what ? ': ' + e.what : ''}`);
+  const chip = n.light === 'none' ? 'todo' : n.light;
+  d.innerHTML = `<span class="chip ${chip}"></span><h3></h3><p class="says"></p><ul></ul>`;
+  d.querySelector('.chip').textContent = LW[n.light]; d.querySelector('h3').textContent = n.name;
+  d.querySelector('.says').textContent = (n.says || '') + (n.promises.length ? ` Rests on ${n.promises.length === 1 ? 'one promise' : n.promises.length + ' promises'}${n.proofs ? `, ${n.proofs === 1 ? 'one proof' : n.proofs + ' proofs'} on file.` : ', no proof yet.'}` : '');
+  const ul = d.querySelector('ul'); [...ins, ...outs].forEach(t => { const li = document.createElement('li'); li.style.gridTemplateColumns = '1fr'; li.textContent = t; ul.appendChild(li); });
+}
+function drawStrip() {
+  const s = document.getElementById('strip'); s.innerHTML = '';
+  BR.forEach((b, i) => { const x = document.createElement('span'); x.setAttribute('role', 'listitem'); x.className = b.lit ? 'lit' : ''; x.textContent = `${i + 1}. ${b.short}`; x.title = `${b.name}: ${b.items.filter(d => d[0] === 'proven').length} of ${b.items.length} proven`; s.appendChild(x); });
+}
 function pick(h, l) { sel = { hub: h, leaf: l }; draw(); renderDetail(); renderPicker(); }
 document.getElementById('hello').textContent = D.question ? D.question : "Hi, I'm BOB. Here's your project.";
 document.getElementById('proj').textContent = D.project;
@@ -242,5 +337,7 @@ document.getElementById('who').textContent = D.next.doer;
 document.getElementById('whotext').textContent = D.next.text;
 document.getElementById('note').textContent = 'Written by BOB from the project records at ' + D.generatedAt + '. Every dot is one promise; none is set by hand. No percentage is shown. Logo and character are the approved BOB files, resized only.';
 renderSchematic();
+drawPicture(); drawStrip();
+if (D.picture && D.picture.nodes.length) { pickPart(D.picture.nodes[0].id); document.getElementById('editline').innerHTML = '<b>Edit this picture in MindNode:</b> open <code>docs/product.opml</code> in the project folder, change it, save. BOB reads your changes back and redraws.' + (D.picture.editedAt ? ' Last read from your mind map at ' + D.picture.editedAt + '.' : ''); }
 if (BR.length) pick(BR[0].id, null);
 </script>

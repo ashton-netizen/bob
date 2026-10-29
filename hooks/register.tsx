@@ -3,6 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { Pending, Preflight } from '../types'
 import { buildMapData, designMapData, renderMap, QUESTION, type MapData, type MapFile } from './map'
+import { lightUp, toOpml, toProduct, type Product } from './product'
 import { STALE_MS, activeIncrement, canonical, approvalVerdict, clipText, describe, evidenceFor, renderStatusHtml, scopeHashOf, sha256Bytes, short, stateWords, statusText, titleOf, when } from './board'
 import { WORKSPACE_FILE, WORKSPACE_REPAIR } from './board'
 import type { Any, Model, Place, Verdict } from './board'
@@ -140,6 +141,43 @@ async function readMapFile($: Engine, m: Model): Promise<MapFile> {
   return file && typeof file === 'object' ? (file as MapFile) : {}
 }
 
+// The picture of the product (bob/product.json) and its mind map twin
+// (docs/product.opml). When the person saved the mind map more recently than
+// the picture file, their edits win: BOB reads them back into product.json.
+// When the picture is newer, BOB rewrites the mind map. Nothing here passes
+// through Gate A: these are BOB's own files, views of the brief.
+async function mtime($: Engine, path: string): Promise<number | null> {
+  try { return Number((await $.fs.stat(path)).mtimeMs) } catch { return null }
+}
+
+async function readPicture($: Engine, m: Model): Promise<{ product: Product | null; editedAt: string | null }> {
+  const jsonPath = at(m.root, 'bob/product.json')
+  const opmlPath = at(m.root, 'docs/product.opml')
+  let product = (await readJson($, jsonPath, [])) as Product | null
+  if (product && (!Array.isArray(product.nodes) || !Array.isArray(product.edges))) product = null
+  const jsonAt = await mtime($, jsonPath)
+  const opmlAt = await mtime($, opmlPath)
+  let editedAt: string | null = null
+  if (opmlAt !== null && (jsonAt === null || opmlAt > jsonAt + 1000)) {
+    const xml = await readText($, opmlPath)
+    const edited = xml === null ? null : toProduct(xml, product)
+    if (edited) {
+      product = edited
+      editedAt = new Date(opmlAt).toISOString()
+      await $.fs.write(jsonPath, pretty({ $comment: 'Read back from docs/product.opml (your mind map) by BOB. Edit either; the newer one wins.', ...edited }))
+    }
+  } else if (product && (opmlAt === null || (jsonAt !== null && jsonAt > opmlAt + 1000))) {
+    await $.fs.write(opmlPath, toOpml(product))
+  }
+  return { product, editedAt }
+}
+
+async function pictureOf($: Engine, m: Model) {
+  const { product, editedAt } = await readPicture($, m)
+  if (!product) return null
+  return lightUp(product, (m.brief?.requirements ?? []) as Any[], (m.ledger?.evidence ?? []) as Any[], editedAt)
+}
+
 async function writePage($: Engine) {
   try {
     const m = await load($)
@@ -149,7 +187,7 @@ async function writePage($: Engine) {
       if (m.place.workspace && !m.place.project) return
       const d = await designOf($, m)
       const done = d ? d.done : STAGES.map(() => false)
-      if (d || (m.place.workspace && m.place.project)) await writeMap($, m, null, designMapData(m, String(m.place?.project ?? 'this project'), STAGES, done, new Date().toISOString(), await readMapFile($, m)))
+      if (d || (m.place.workspace && m.place.project)) await writeMap($, m, null, designMapData(m, String(m.place?.project ?? 'this project'), STAGES, done, new Date().toISOString(), await readMapFile($, m), await pictureOf($, m)))
       return
     }
     const b = describe(m, await read($, preflightAtom), Date.now())
@@ -170,7 +208,7 @@ async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | nu
     if (template === null) return
     const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
     const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
-    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString(), await readMapFile($, m))))
+    await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString(), await readMapFile($, m), await pictureOf($, m))))
   } catch {
     // a missing asset never blocks a session; the board page is still written
   }

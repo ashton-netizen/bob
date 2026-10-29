@@ -16,9 +16,13 @@ So: the first real BOB session is this one, Ash and BOB building BOB. Mags's fir
 
 The building of BOB feels like BOB: one question at a time in plain words, a map that lights up, three approvals by button, and no one ever asked to type, paste or hunt for anything. When Mags then takes one idea from a sentence to a working thing the same way, with the map fully lit at the end, BOB is done.
 
-## The map (Ash chose: ten stages plus a product schematic)
+## The picture (Ash's correction, 29 October 2026, later the same morning: the product first, not the progress)
 
-The picture BOB shows up front is Ash's original ten-stage mind map, as the spine that lights up:
+"The trick around BOB is: I can see what I've built." The picture at the heart of BOB is a flowchart of the product being built: what starts it, what comes in, the sources and databases it reads, what it does, what it decides, what it produces and what it shows. One box per part, arrows for how information moves. A box lights when that part is built and proven. It is a picture of the thing, not a scoreboard.
+
+Ash edits the picture in his own tool: BOB writes it as a mind map file he opens in MindNode and changes freely, and BOB reads his changes back into the brief and redraws.
+
+The ten-stage mind map stays, behind the picture, as one thin strip lit as each stage is proven: progress only, never the headline.
 
 1. Define the outcome and scope
 2. Establish what good looks like
@@ -31,9 +35,7 @@ The picture BOB shows up front is Ash's original ten-stage mind map, as the spin
 9. Verify quality and release
 10. Operate, measure and learn
 
-Inside that spine sits a schematic of the product being built: its screens and how information flows between them. A stage lights when it is proven, never when it is merely reported. The map carries no requirement codes, increment numbers, hashes or pull request numbers. Those live in the files.
-
-The six-branch map the earlier build produced (idea, brief, approve, rounds, report, guide) is not this map.
+Nothing on the picture is a gate, a rule, a test or a code. The first working look of 29 October (the ten stages in front, the product as a list) was not this, and was corrected the same morning.
 
 ## Where BOB lives (Ash chose: pane in Claude Code plus a browser map)
 
