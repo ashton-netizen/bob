@@ -1,0 +1,6 @@
+(fail) R-bob-demo-18: a promise a screen rests on reaches verified only with a person’s own look on record; a test alone leaves it at built [23.64ms]
+(fail) R-bob-demo-19: approving the next round refuses to close a fully verified round that has no reviewer’s verdict on file, and closes it once one is filed under docs/evidence/review/ [25.27ms]
+(pass) R-bob-demo-19: a round approved before the reviewer rule is not held to it [25.18ms]
+(fail) R-bob-demo-08: BOB keeps a "Now" block at the top of docs/project-status.md, rewritten at session start and after every command: the round, the approval, proven count, the next step with its doer, and where the pages are [23.65ms]
+ 104 pass
+ 3 fail

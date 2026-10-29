@@ -194,9 +194,44 @@ async function writePage($: Engine) {
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
     await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
     await writeMap($, m, b)
+    await writeNow($, m, b)
   } catch {
     // the page is a view; a failure to write it never blocks a session
   }
+}
+
+// Phase two (R-bob-demo-08, the new-hire test of 29 October 2026: a fresh
+// reader could not tell which round was running from the files). BOB keeps a
+// "Now" block at the top of docs/project-status.md, rewritten in place at
+// session start and after every command, in plain words: the round, the
+// approval, the proven count, the next step with its doer, and where the pages
+// are. The log below it is never touched.
+const NOW_OPEN = '<!-- BOB now -->'
+const NOW_CLOSE = '<!-- /BOB now -->'
+
+async function writeNow($: Engine, m: Model, b: ReturnType<typeof describe>) {
+  const path = at(m.root, 'docs/project-status.md')
+  const current = await readText($, path)
+  if (current === null) return
+  const reqs = ((m.brief?.requirements ?? []) as Any[])
+  const evidence = ((m.ledger?.evidence ?? []) as Any[])
+  const proven = reqs.filter(r => ['verified', 'accepted'].includes(String(r.state)) && evidence.some(e => e.requirement_id === r.id)).length
+  const file = await readMapFile($, m)
+  const links = ((file as Any).published ?? {}) as Record<string, string>
+  const where = ['docs/map.html (the picture)', 'docs/status.html (the status page)'].concat(Object.entries(links).map(([k, v]) => `${k}: ${v}`)).join('; ')
+  const lines = [
+    NOW_OPEN,
+    `**Now (written by BOB at ${when(new Date().toISOString())}; the log below is history):**`,
+    `- ${/^idle/.test(b.increment) ? 'No round running' : `Round running: ${b.increment.replace(/ · .*$/, '')}`}${b.approval && b.approval !== 'missing' && b.approval !== 'none' ? `, ${b.approval}` : ''}.`,
+    `- ${proven} of ${reqs.length} promises proven.`,
+    `- Next step: ${b.next}.`,
+    `- Where to look: ${where}.`,
+    NOW_CLOSE,
+  ].join('\n')
+  const stripped = current.replace(new RegExp(`\\n?${NOW_OPEN}[\\s\\S]*?${NOW_CLOSE}\\n?`), '\n')
+  const firstBreak = stripped.indexOf('\n')
+  const next = firstBreak >= 0 && stripped.startsWith('#') ? `${stripped.slice(0, firstBreak)}\n\n${lines}\n${stripped.slice(firstBreak).replace(/^\n+/, '\n')}` : `${lines}\n\n${stripped}`
+  if (next !== current) await $.fs.write(path, next)
 }
 
 // docs/map.html, the project as a map. The template and the approved
@@ -428,6 +463,13 @@ async function adopt($: Engine): Promise<string> {
   ].join('\n')
 }
 
+const REVIEW_RULE_FROM = '2026-10-29T00:46:57Z'
+const reviewed = (m: Model, inc: Any): boolean => {
+  const approval = m.approvals.find(a => a.id === inc.approval_id)
+  if (approval && String(approval.approved_at ?? '') < REVIEW_RULE_FROM) return true
+  return evidenceFor(m, (inc.requirement_ids ?? []) as string[]).some(ev => String(ev.ref ?? '').startsWith('docs/evidence/review/'))
+}
+
 async function approve($: Engine, idArg: string, originKind: string | undefined): Promise<string> {
   const id = idArg.trim()
   if (!id) return refusedText('approve', ['no increment id given. Usage: /bob approve <increment id>'])
@@ -449,6 +491,11 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
     const reqs = ((m.brief.requirements ?? []) as Any[])
     const open = ((other.requirement_ids ?? []) as string[]).filter(rid => !['verified', 'accepted'].includes(String(reqs.find(r => r.id === rid)?.state)))
     if (open.length) return refusedText('approve', [`${other.id} is active and ${open.join(', ')} ${open.length === 1 ? 'is' : 'are'} not verified yet; one increment at a time. Verify them, or close ${other.id} (done or returned), before approving ${id}`])
+    // Phase two (R-bob-demo-19): a round closes as done only with a reviewer's
+    // verdict on file, an evidence record whose file sits under
+    // docs/evidence/review/ (the Infinite Leverage reviewers at stage nine).
+    // Rounds approved before this rule (the ledger says so) are exempt.
+    if (!reviewed(m, other)) return refusedText('approve', [`${other.id} has every promise verified but no reviewer's verdict on file: run the reviewers (product manager and QA) on the round and save their verdict as an evidence record with its file under docs/evidence/review/, then approve ${id}`], `Claude: run the reviewers on \u201c${titleOf(other)}\u201d and file the verdict under docs/evidence/review/`)
   }
   if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
   const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && (a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash)))
@@ -998,7 +1045,17 @@ function proposesOnly(m: Model, path: string, e: Any): boolean {
 // The state-table guard on bob/brief.json: every changed requirement state must
 // be a transition the schema allows; verified needs an evidence record; accepted
 // needs a human on the transition, and a tool call is never human.
-function transitionVerdict(m: Model, after: Any, source: string): string | null {
+// Phase two (R-bob-demo-18, cure 5 of the post-mortem): a promise about what a
+// person sees is one that a screen in bob/product.json rests on. It reaches
+// verified only on a person's own look: an evidence record of origin human.
+// A test alone leaves it at built.
+async function facePromises($: Engine, m: Model): Promise<Set<string>> {
+  const product = (await readJson($, at(m.root, 'bob/product.json'), [])) as Product | null
+  const ids = ((product?.nodes ?? []) as Any[]).filter(n => n.kind === 'screen').flatMap(n => (n.promises ?? []) as string[])
+  return new Set(ids)
+}
+
+function transitionVerdict(m: Model, after: Any, source: string, face: Set<string> = new Set()): string | null {
   const rules = m.schema?.requirement
   if (!rules || !m.brief) return null
   const before = new Map<string, string>((m.brief.requirements ?? []).map((r: Any) => [r.id, r.state]))
@@ -1012,6 +1069,7 @@ function transitionVerdict(m: Model, after: Any, source: string): string | null 
     if (to === 'verified') {
       const has = evidenceFor(m, [r.id]).some(ev => kinds.includes(ev.kind))
       if (!has) return `${r.id}: verified needs an evidence record in bob/ledger.json (kind ${kinds.join(', ')}) and none exists for it. Model prose is never evidence`
+      if (face.has(r.id) && !evidenceFor(m, [r.id]).some(ev => ev.origin === 'human')) return `${r.id}: this promise is about what a person sees (a screen in bob/product.json rests on it), so verified needs a person's own look on record: an evidence record with origin human. A test alone leaves it at built`
     }
     if (to === 'accepted' && source !== 'human') return `${r.id}: accepted needs a human on the transition, and this write comes from ${source}. Ash needs to set it`
   }
@@ -1302,7 +1360,7 @@ export const register: Register = on => {
         } catch {
           return { deny: 'BOB state guard refused this write: it would leave bob/brief.json as text that does not parse as JSON. Next action: Claude: write the whole file as valid JSON.' }
         }
-        const why = transitionVerdict(m, after ?? {}, 'ai')
+        const why = transitionVerdict(m, after ?? {}, 'ai', await facePromises($, m))
         if (why) return { deny: `BOB state guard refused this write. ${why}. Next action: Claude: capture evidence first, or leave the state for Ash.` }
       }
     }

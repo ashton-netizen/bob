@@ -68,3 +68,6 @@ The repo is now governed and no increment is active, so Gate A refuses every wri
 - [ ] `bob/approvals.json` is `{"approvals": []}` until a person presses Approve.
 - [ ] `git log main -1` unchanged from preflight; `git diff main --stat` shows only `bob/`, `docs/evidence/adopt/`, `docs/project-status.md` and `.claude/settings.json`.
 - [ ] Nothing from the adopted repo's client material appears in the BOB plugin repo.
+
+### 7. Before a round closes: the reviewers (Claude)
+A round closes as done only with a reviewer's verdict on file (BOB refuses the next approval without one). Before the round's last promise is verified, run the Infinite Leverage reviewers on the round's changes, the product manager and QA agents where the repo has them (`.claude/agents/`), otherwise the Karpathy and Bach review prompts from `references/build-brief/references/review-prompts.md`, and save their verdict as `docs/evidence/review/<round>_verdict.md` with one evidence record pointing at it. The verdict names what passed, what did not, and what was not checked.

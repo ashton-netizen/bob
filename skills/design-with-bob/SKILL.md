@@ -72,6 +72,7 @@ Then regenerate from `bob/brief.md`, never from the conversation: `journey.md` (
 - (Stage F) the proposal passes the shape check with zero refusals.
 
 ## Always
+- The method lives at two stages of the map: build-brief at stage six (the Check mode in stage F here), and the Infinite Leverage reviewers at stage nine, before any round closes, their verdict filed under `docs/evidence/review/` (adopt-under-bob step 7).
 - Name the board and the map first: the first message of a session names `docs/status.html` and `docs/map.html` with the proven count and the next step with its doer (R-bob-04). Ask each decision once, as one popup in the window that will run the answer, naming that window (R-bob-02).
 - One recommended next action, with its owner, at the end of every stage.
 - Plain Australian English, headline first, no em-dashes, no engineering words to the operator (schema, JSON, hash are for the files, not the conversation).
