@@ -132,6 +132,9 @@ export function toProduct(xml: string, previous: Product | null): Product | null
   }
   for (const g of groups) {
     const known = KINDS.find(k => k.heading === g.text)?.kind
+    // A new branch off the centre with nothing under it is a part the person
+    // added (Ash, 29 October 2026: an outcome, so "what it produces").
+    if (!known && !g.children.length && !g.text.startsWith('\u2192')) { addPart(g, prevByName(g.text)?.kind ?? 'output'); continue }
     const kind: Kind = known ?? (g.children.map(c => prevByName(c.text)?.kind).find(Boolean) as Kind | undefined) ?? 'step'
     for (const leaf of g.children) addPart(leaf, kind)
   }
@@ -145,4 +148,90 @@ export function toProduct(xml: string, previous: Product | null): Product | null
     if (target) edges.push({ from: a.fromId, to: target.id, what: i >= 0 ? body.slice(i + 1).trim() : '' })
   }
   return { name, nodes, edges }
+}
+
+
+// ---------------------------------------------------------------------------
+// MindNode's own file. MindNode Classic saves a .mindnode package (contents.xml,
+// a binary plist) where the person last saved, not into BOB's OPML (seen 29
+// October 2026). BOB finds the file by the product's name with Spotlight and
+// reads it back through `plutil -convert xml1`, which every Mac has. This reads
+// the XML plist form: the main node's title is the product, its children the
+// seven headings, theirs the parts, and a child "→ part: what" an arrow.
+// ---------------------------------------------------------------------------
+
+type PlistValue = string | number | boolean | PlistValue[] | { [k: string]: PlistValue }
+
+export function plistXml(xml: string): PlistValue | null {
+  const tags = [...xml.matchAll(/<(\/?)([a-zA-Z]+)([^>]*?)(\/?)>|<!\[CDATA\[([\s\S]*?)\]\]>/g)]
+  let i = 0
+  const textBetween = (from: number, to: number) => xml.slice(from, to)
+  const decode = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&')
+  const read = (): PlistValue | null => {
+    const t = tags[i]
+    if (!t) return null
+    const [, close, name, , self] = t
+    if (close) { i++; return null }
+    if (self && name === 'array') { i++; return [] }
+    if (self && name === 'dict') { i++; return {} }
+    if (name === 'dict') {
+      i++
+      const out: { [k: string]: PlistValue } = {}
+      while (tags[i] && !(tags[i][1] === '/' && tags[i][2] === 'dict')) {
+        const k = tags[i]
+        if (k[2] !== 'key') { i++; continue }
+        const key = decode(textBetween(k.index! + k[0].length, tags[i + 1].index!))
+        i += 2 // past <key> and </key>
+        const v = read()
+        if (v !== null) out[key] = v
+      }
+      i++ // </dict>
+      return out
+    }
+    if (name === 'array') {
+      i++
+      const out: PlistValue[] = []
+      while (tags[i] && !(tags[i][1] === '/' && tags[i][2] === 'array')) { const v = read(); if (v !== null) out.push(v) }
+      i++
+      return out
+    }
+    if (name === 'true' || name === 'false') { i++; return name === 'true' }
+    if (self) { i++; return name === 'string' ? '' : null }
+    // string, integer, real, date, data: text up to the closing tag
+    const closeTag = tags[i + 1]
+    const raw = closeTag ? textBetween(t.index! + t[0].length, closeTag.index!) : ''
+    i += 2
+    if (name === 'integer' || name === 'real') return Number(raw)
+    return decode(raw)
+  }
+  // skip the <?xml …?> and <!DOCTYPE> (not matched as tags) and the <plist> wrapper
+  while (tags[i] && tags[i][2] !== 'plist') i++
+  i++
+  const v = read()
+  return v
+}
+
+const plainTitle = (t: PlistValue | undefined): string => {
+  const raw = t && typeof t === 'object' && !Array.isArray(t) ? String((t as Any).text ?? '') : String(t ?? '')
+  return raw.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim()
+}
+
+// The picture read back from MindNode's own file (its XML plist form).
+export function toProductFromMindNode(plistXmlText: string, previous: Product | null): Product | null {
+  const root = plistXml(plistXmlText) as Any
+  const main = root?.canvas?.mindMaps?.[0]?.mainNode
+  if (!main) return null
+  const toOutline = (n: Any): Outline => ({ text: plainTitle(n.title), note: plainTitle(n.note), children: ((n.subnodes ?? []) as Any[]).map(toOutline) })
+  const outline = toOutline(main)
+  // Reuse the OPML reader's walk by handing it the same shape.
+  const xml = outlineToOpml(outline)
+  return toProduct(xml, previous)
+}
+
+const escX = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+function outlineToOpml(o: Outline): string {
+  const line = (n: Outline): string => n.children.length
+    ? `<outline text="${escX(n.text)}"${n.note ? ` _note="${escX(n.note)}"` : ''}>${n.children.map(line).join('')}</outline>`
+    : `<outline text="${escX(n.text)}"${n.note ? ` _note="${escX(n.note)}"` : ''}/>`
+  return `<opml version="2.0"><body>${line(o)}</body></opml>`
 }

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { lightUp, toOpml, toProduct } from './product'
+import { lightUp, toOpml, toProduct, toProductFromMindNode } from './product'
 
 // Every record below is SYNTHETIC (is_synthetic true) and deliberately differs
 // from fixtures/ so a pane that hard-codes the spike's values fails here.
@@ -2153,4 +2153,32 @@ test('QA 8: the run a click starts is not closed by the Stop of the turn the cli
   await $.turn.start({ text: 'the work', turnId: 't-work' })
   await $.classic.Stop(stopInput())
   expect(JSON.parse(w.files!['bob/ledger.json']).runs[0].state).toBe('completed')
+})
+
+test('R-bob-demo-12: a new branch the person adds off the centre in MindNode becomes a part under "what it produces"; MindNode’s own file (its XML plist form) reads back to the same picture', async () => {
+  const xml = toOpml(PRODUCT as any).replace('  </outline>\n</outline>', '  </outline>\n  <outline text="The build is smooth and never asks for a terminal"/>\n</outline>')
+  const back = toProduct(xml, PRODUCT as any)!
+  const added = back.nodes.find(n => n.name === 'The build is smooth and never asks for a terminal')
+  expect(added?.kind).toBe('output')
+  expect(back.nodes.length).toBe(PRODUCT.nodes.length + 1)
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>version</key><integer>5</integer><key>canvas</key><dict><key>mindMaps</key><array><dict><key>mainNode</key><dict>
+<key>title</key><dict><key>text</key><string>&lt;p style='font: 24px'&gt;Rate check&lt;/p&gt;</string></dict>
+<key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;What starts it&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;A lead asks for a price&lt;/p&gt;</string></dict><key>note</key><dict><key>text</key><string>&lt;p&gt;by email&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;→ Check the line against the card: the ask starts a check&lt;/p&gt;</string></dict><key>subnodes</key><array/></dict>
+</array></dict></array></dict>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;What it does&lt;/p&gt;</string></dict><key>subnodes</key><array>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;Check the line against the card&lt;/p&gt;</string></dict><key>subnodes</key><array/></dict>
+</array></dict>
+<dict><key>title</key><dict><key>text</key><string>&lt;p&gt;A weekly summary&lt;/p&gt;</string></dict><key>subnodes</key><array/></dict>
+</array></dict></dict></array></dict></dict></plist>`
+  const fromMind = toProductFromMindNode(plist, PRODUCT as any)!
+  expect(fromMind.name).toBe('Rate check')
+  expect(fromMind.nodes.map(n => [n.kind, n.name])).toEqual([['trigger', 'A lead asks for a price'], ['step', 'Check the line against the card'], ['output', 'A weekly summary']])
+  expect(fromMind.nodes[0].says).toBe('by email')
+  expect(fromMind.nodes[0].promises).toEqual(['R-T-01'])
+  expect(fromMind.edges).toEqual([{ from: 'a-lead-asks-for-a-price', to: 'check-the-line-against-the-card', what: 'the ask starts a check' }])
 })
