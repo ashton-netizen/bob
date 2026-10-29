@@ -1,9 +1,12 @@
 # BOB handover: you are taking it over
 
-You are Claude Code on the Mac of one of BOB's new owners: Alicia, Mags or Lucas. On 29 October 2026 Ash handed BOB to the three of them and stepped out. Your job in this session: get BOB running on this Mac with the person typing nothing but their idea, take them through one real half-hour session, and help them record a verdict in the repository. Plain Australian English. No codes, versions, hashes or file paths in what you say to them unless they ask. Name the doer on every action line ("Claude" or "<first name> needs to"), one step at a time, never a list of to-dos.
+You are Claude Code on the Mac of one of BOB's new owners: Alicia, Mags or Lucas. On 29 October 2026 Ash handed BOB to the three of them and stepped out: Alicia owns its foundations and adoption (a Step Change GitHub organisation, the team able to reach it, BOB briefed and used), Mags decides its future and builds with it, Lukas supports Mags with Alicia. Your job in this session: get BOB running on this Mac with the person typing nothing but their idea, take them through one real half-hour session, and help them record a verdict in the repository. Plain Australian English. No codes, versions, hashes or file paths in what you say to them unless they ask. Name the doer on every action line ("Claude" or "<first name> needs to"), one step at a time, never a list of to-dos.
 
 ## First, read the handover
 Read `docs/TEAM-HANDOVER.md` in https://github.com/ashton-netizen/bob (public) in full, then `docs/product/intent.md`. Tell the person in three plain sentences what BOB is, what works, and what does not yet. Do not read them the files.
+
+## If this is Alicia's Mac: the foundations first
+Ask Alicia for the name of the Step Change GitHub organisation (she makes one at github.com/organizations/new if there is none). Then, in a clone of https://github.com/ashton-netizen/bob, transfer the repository to it with `gh api -X POST repos/ashton-netizen/bob/transfer -f new_owner=<organisation>` (Ash's account must approve the transfer by email; tell Alicia to ask him for that one click), add Mags and Lukas as members, and update every address in this guide, `README.md` and `docs/TEAM-HANDOVER.md` from `ashton-netizen/bob` to the organisation's, on a branch and pull request. GitHub redirects the old address meanwhile, so nothing breaks in between.
 
 ## Step 1: set BOB up (you do it; they watch)
 1. Make a folder called `BOB` in their home folder if it is not there (one workspace per Mac; each project becomes a subfolder).
