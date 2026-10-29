@@ -1,6 +1,12 @@
 # BOB is yours: Alicia, Mags and Lucas
 
-Handed over by Ash on 29 October 2026, 10:40 pm. Ash is out. You three own BOB from here, and Mags makes the call on whether it is kept, cut back, or stopped (Ash's ruling, 11:05 pm); Alicia and Lucas advise. Nobody needs Ash's approval for any of it. This page is the whole handover; everything else it points to is in this repository.
+Handed over by Ash on 29 October 2026, 10:40 pm. Ash is out. You three own BOB from here: Alicia holds its foundations and adoption, Mags makes the call on whether it is kept, cut back, or stopped, and Lukas supports Mags with Alicia. Nobody needs Ash's approval for any of it. This page is the whole handover; everything else it points to is in this repository.
+
+## Who holds what (Ash's ruling, 29 October 2026, 11:25 pm)
+- Alicia owns BOB's foundations and its adoption: getting it onto Step Change ground (a Step Change GitHub organisation instead of Ash's personal account, with the team able to reach it), and making sure it is optimised, briefed and used. Claude Code in this repository transfers it once Alicia names the organisation.
+- Mags decides BOB's future (keep, cut back, or stop) and is the person it is for: she uses it as the foundation for what she builds.
+- Lukas, with Alicia, supports Mags in using it.
+- Ash is out. He asked for the result, not the report.
 
 ## What BOB is
 BOB (Build Optimisation Buddy) is a Claude Code plugin. It sits as a pane beside the chat in the Claude desktop app's Code tab. A person says an idea in a sentence; Claude designs it with them in plain questions; BOB draws a picture of what is being built and lights each part as it is proven; then the build runs in rounds where no round starts without the person's Approve press and none ends without proof on file. The person types nothing but their idea and their answers; every ask is a button in the pane.
