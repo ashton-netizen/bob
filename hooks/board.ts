@@ -173,7 +173,11 @@ export function describe(m: Model, pf: Preflight | null, now: number, face: Set<
   const evidence = ((m.ledger?.evidence ?? []) as Any[])
   const active = activeIncrement(m)
   const runs = ((m.ledger?.runs ?? []) as Any[])
-  const latestRun = runs.slice().sort((a, b) => String(a.last_event_at ?? '').localeCompare(String(b.last_event_at ?? '')))[runs.length - 1]
+  // The current task is the active round's run; only with no active round
+  // does the latest run by event stand in (a reconciled older run read as
+  // "phase one" while phase two ran: seen on the status page, 29 October 2026).
+  const newest = runs.slice().sort((a, b) => String(a.last_event_at ?? '').localeCompare(String(b.last_event_at ?? '')))[runs.length - 1]
+  const latestRun = (active && runs.filter(r => r.increment_id === active.id).sort((a, b) => String(a.started_at ?? '').localeCompare(String(b.started_at ?? '')))[runs.filter(r => r.increment_id === active.id).length - 1]) || newest
   const events = ((m.ledger?.events ?? []) as Any[])
   const runEvents = latestRun ? events.filter(ev => ev.run_id === latestRun.id) : events
   const started = runEvents.filter(ev => ev.type === 'started').slice(-1)[0]

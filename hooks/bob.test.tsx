@@ -2316,3 +2316,20 @@ test('R-bob-demo-18: a person’s look is never Claude’s to write: a Write or 
   expect(refused).toContain('press')
   expect(said(await $.tool.call({ tool: 'Write', file_path: '/adopted/repo/bob/ledger.json', content: add('tool') }))).toBe('')
 })
+
+test('the current task on the status page is the active round’s run, not an older run that was reconciled later', async ($, on) => {
+  const runs = [
+    { id: 'RUN-T-1', increment_id: 'INC-T-1', state: 'completed', started_at: '2026-10-21T08:00:00+11:00', last_event_at: '2026-10-21T11:00:00+11:00', session_id: null, cancel_requested: false, exit_reason: 'reconciled', cost_usd_reported: null, ...base('human') },
+    { id: 'RUN-T-2', increment_id: 'INC-T-2', state: 'completed', started_at: '2026-10-21T09:00:00+11:00', last_event_at: '2026-10-21T09:30:00+11:00', session_id: null, cancel_requested: false, exit_reason: 'turn ended', cost_usd_reported: null, ...base('human') },
+  ]
+  const events = [
+    { id: 'EV-T-1', run_id: 'RUN-T-1', at: '2026-10-21T08:00:00+11:00', origin: 'human', type: 'started', detail: 'the old round started', ...base('human') },
+    { id: 'EV-T-2', run_id: 'RUN-T-2', at: '2026-10-21T09:00:00+11:00', origin: 'human', type: 'started', detail: 'bank and pulls started by a click', ...base('human') },
+    { id: 'EV-T-3', run_id: 'RUN-T-1', at: '2026-10-21T11:00:00+11:00', origin: 'bob', type: 'reconciled', detail: 'closed late', ...base('tool') },
+  ]
+  const w = await approvedWorld(on, { ledger: { ...LEDGER, runs, events } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const html = statusPage(w)[statusPage(w).length - 1].text
+  expect(html).toContain('bank and pulls started by a click')
+  expect(html).not.toContain('the old round started')
+})
