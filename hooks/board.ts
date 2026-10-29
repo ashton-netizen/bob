@@ -208,7 +208,11 @@ export function describe(m: Model, pf: Preflight | null, now: number, face: Set<
   if (active) {
     const inScope = reqs.filter(r => (active.requirement_ids ?? []).includes(r.id))
     const unproven = inScope.find(r => ['implemented', 'reported', 'designed'].includes(r.state) && !evidence.some(ev => ev.requirement_id === r.id))
-    const toAccept = inScope.find(r => r.state === 'verified')
+    // No Accept button exists in the pane, so "accept or return" was an ask with
+    // no button (the live map, 29 October 2026, 9:57 pm). A promise not yet
+    // started is Claude's to start; with every promise proven, the Approve
+    // press on the next round closes this one.
+    const unstarted = inScope.find(r => ['not_assessed', 'designed'].includes(r.state))
     const needsLook = (r: Any) => face.has(r.id) && !evidence.some(ev => ev.requirement_id === r.id && ev.origin === 'human')
     const built = inScope.filter(r => ['implemented', 'reported'].includes(r.state))
     const toVerify = built.find(r => !needsLook(r))
@@ -217,8 +221,8 @@ export function describe(m: Model, pf: Preflight | null, now: number, face: Set<
     else if (unproven) next = `Claude: capture proof for “${textOf(unproven.id)}”`
     else if (toVerify) next = `Claude: verify “${textOf(toVerify.id)}” against its check`
     else if (toSee) next = `Ash needs to: press I’ve seen this for “${textOf(toSee.id)}” in the BOB pane`
-    else if (toAccept) next = `Ash needs to: accept or return “${textOf(toAccept.id)}”`
-    else next = `Ash needs to: close “${titleOf(active)}” and approve the next round`
+    else if (unstarted) next = `Claude: start on “${textOf(unstarted.id)}”`
+    else next = `Ash needs to: press Approve on the next round in the BOB pane; “${titleOf(active)}” closes with it`
   }
 
   let stale: string | null = null

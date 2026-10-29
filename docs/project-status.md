@@ -1,5 +1,13 @@
 # BOB · project status (living file, update in place)
 
+<!-- BOB now -->
+**Now (written by BOB at 29 October at 9:54 pm; the log below is history):**
+- No round running, none needed: idle: no round started.
+- 12 of 19 promises proven.
+- Next step: Claude: propose the next round before new build work; BOB is idle, so edits are allowed until then.
+- Where to look: docs/map.html (the picture); docs/status.html (the status page).
+<!-- /BOB now -->
+
 Last updated: 22 October 2026, Build 3 Part B item 1 (adopt VGA) done on VGA branch bob-adopt, pull request open NEEDS ASH; Part A merged (plugin 0.3.0, tag bob--v0.3.0). Earlier: Build 2 Part A COMPLETE: plugin 0.2.0 merged to main (pull request 7) and tagged bob--v0.2.0; Part B (adopt AquaAgent) not started. Build 1 COMPLETE and merged to main. Pane seen by Ash on the Code tab, and again in a fresh folder after a one-command install from the repo (step 8 verified by Ash).
 
 ## Where BOB is
