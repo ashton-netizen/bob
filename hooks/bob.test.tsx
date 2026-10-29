@@ -229,6 +229,13 @@ function world(on: any, w: World) {
       w.pages!.push({ path: r, text: e.text })
       return { value: undefined }
     }
+    // The "Now" block BOB keeps at the top of the status file is a view too:
+    // filed with the pages, and the file updated, never in the record writes.
+    if (r === 'docs/project-status.md' && e.text.includes('<!-- BOB now -->')) {
+      w.pages!.push({ path: r, text: e.text })
+      w.files![r] = e.text
+      return { value: undefined }
+    }
     if (r === 'docs/map.html' || r.endsWith('/docs/map.html')) {
       w.maps!.push({ path: r, text: e.text })
       return { value: undefined }
@@ -1950,4 +1957,73 @@ test('R-bob-demo-12: when the mind map file is newer than the picture file, the 
   expect(back.nodes.some((n: any) => n.name === 'A flagged proposal in HubSpot')).toBe(true)
   // The older picture file is never written over the newer mind map.
   expect(w.writes!.some(x => x.path === 'docs/product.opml')).toBe(false)
+})
+
+// ---------------------------------------------------------------------------
+// Phase two: seen by a person before done, and no round closes without a
+// reviewer's verdict on file.
+// ---------------------------------------------------------------------------
+
+test('R-bob-demo-18: a promise a screen rests on reaches verified only with a person’s own look on record; a test alone leaves it at built', async ($, on) => {
+  const product = { name: 'P', nodes: [{ id: 'pane', kind: 'screen', name: 'The pane', says: '', promises: ['R-T-03'] }, { id: 'step', kind: 'step', name: 'A step', says: '', promises: ['R-T-04'] }], edges: [] }
+  const w = await approvedWorld(on, { approvals: [], files: { 'bob/product.json': JSON.stringify(product) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  // Approved through the command, so the record carries a scope hash and state moves cost no re-approval.
+  expect(await approve($, 'INC-T-2')).not.toContain('refused')
+  const brief = (state3: string, state4: string) => JSON.stringify({ requirements: BRIEF.requirements.map(r => (r.id === 'R-T-03' ? { ...r, state: state3 } : r.id === 'R-T-04' ? { ...r, state: state4 } : r)) })
+  // R-T-03 has a test record (tool origin) only: verified is refused for the screen promise.
+  const refused = said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/brief.json`, content: brief('verified', 'designed') }))
+  expect(refused).toContain('person')
+  expect(refused).toContain('origin human')
+  // R-T-04 (a step, not a screen) with a tool-origin record may be verified.
+  const ledger = { ...LEDGER, evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  w.files!['bob/ledger.json'] = JSON.stringify(ledger)
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/brief.json`, content: brief('implemented', 'implemented') }))).toBe('')
+  w.brief = JSON.parse(brief('implemented', 'implemented'))
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/brief.json`, content: brief('implemented', 'verified') }))).toBe('')
+  // With a human-origin record on file, the screen promise may be verified.
+  w.files!['bob/ledger.json'] = JSON.stringify({ ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-05', 'R-T-03', '2026-10-21T09:26:00+11:00'), kind: 'screenshot', origin: 'human' }] })
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/brief.json`, content: brief('verified', 'verified') }))).toBe('')
+})
+
+test('R-bob-demo-19: approving the next round refuses to close a fully verified round that has no reviewer’s verdict on file, and closes it once one is filed under docs/evidence/review/', async ($, on) => {
+  const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  const w = await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: '2026-10-30T10:00:00+11:00', ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const refused = await approve($, 'INC-T-3')
+  expect(refused).toContain('refused')
+  expect(refused).toContain('reviewer')
+  expect(refused).toContain('docs/evidence/review/')
+  w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-09', 'R-T-03', '2026-10-21T09:40:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }] }
+  const ok = await approve($, 'INC-T-3')
+  expect(ok).not.toContain('refused')
+  expect(ok).toContain('closed (done)')
+})
+
+test('R-bob-demo-19: a round approved before the reviewer rule is not held to it', async ($, on) => {
+  const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(await approve($, 'INC-T-3')).toContain('closed (done)')
+})
+
+test('R-bob-demo-08: BOB keeps a "Now" block at the top of docs/project-status.md, rewritten at session start and after every command: the round, the approval, proven count, the next step with its doer, and where the pages are', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'docs/project-status.md': '# repo · project status\n\n## Build log\n- something old\n' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const text = w.files!['docs/project-status.md']
+  expect(text.startsWith('# repo · project status')).toBe(true)
+  const block = text.match(/<!-- BOB now -->([\s\S]*?)<!-- \/BOB now -->/)
+  expect(block).not.toBe(null)
+  expect(block![1]).toContain('Round running: bank and pulls')
+  expect(block![1]).toContain('approved by Mags (fixture)')
+  expect(block![1]).toContain('2 of 5 promises proven')
+  expect(block![1]).toContain('Next step: Claude: capture proof for “pulls”')
+  expect(block![1]).toContain('docs/map.html')
+  expect(block![1]).not.toMatch(ID_LIKE)
+  expect(text).toContain('- something old')
+  // Rewritten in place, never a second block.
+  await $.command.run({ command: 'bob', args: '' })
+  expect((w.files!['docs/project-status.md'].match(/<!-- BOB now -->/g) ?? []).length).toBe(1)
 })
