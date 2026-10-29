@@ -2333,3 +2333,24 @@ test('the current task on the status page is the active round’s run, not an ol
   expect(html).toContain('bank and pulls started by a click')
   expect(html).not.toContain('the old round started')
 })
+
+test('the next step never asks for a button the pane does not have: a proven promise is not "accept or return"; an unstarted promise is Claude’s to start, and a fully proven round waits on the Approve press for the next round', async ($, on) => {
+  const brief = { requirements: BRIEF.requirements.map(r => (r.id === 'R-T-03' ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r.id === 'R-T-04' ? { ...r, state: 'not_assessed', evidence_ids: [] } : r)) }
+  const w = await approvedWorld(on, { brief, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(brief)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  expect(data.next.doer).toBe('CLAUDE')
+  expect(data.next.text).toContain('start on “pulls”')
+  expect(data.next.text).not.toContain('accept')
+})
+
+test('a round with every promise proven names the Approve press on the next round as the step, in Ash’s name, not "accept or return"', async ($, on) => {
+  const brief = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const ledger = { ...LEDGER, evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00')] }
+  const w = await approvedWorld(on, { brief, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(brief)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: T, ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w)
+  expect(data.next.doer).toBe('ASH NEEDS TO')
+  expect(data.next.text).toContain('Approve')
+  expect(data.next.text).not.toContain('accept or return')
+})
