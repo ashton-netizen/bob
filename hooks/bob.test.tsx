@@ -1011,7 +1011,7 @@ test('/bob new in an empty workspace: git init on main in a new subfolder, a sta
   expect(out).toContain('demo')
   expect(inits(w).map(r => [...r.argv])).toEqual([['git', 'init', '-b', 'main', `${ROOT}/demo`]])
   expect(w.writes!.map(x => x.path)).toEqual(['demo/docs/project-status.md', 'CLAUDE.md', 'bob-workspace.json'])
-  expect(w.files!['demo/docs/project-status.md']).toContain('/bob new')
+  expect(w.files!['demo/docs/project-status.md']).toContain('project started')
   expect(w.files!['CLAUDE.md']).toContain('BOB workspace')
 
   const ws = wsOf(w)
@@ -1832,7 +1832,7 @@ test('R-bob-demo-16: a round cannot end on a closing report that does not show t
   const blocked = await $.classic.Stop(stopInput())
   expect(blocked.block ?? '').toContain('show the map')
   expect((await $.classic.Stop(stopInput(true))).block).toBe(undefined)
-  w.transcript = said1('Detail.\n\nStage: built.\nLive: https://claude.ai/artifact/abc.\nNext: Ash needs to look.')
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: the picture at https://claude.ai/artifact/abc.\nNext: Ash needs to look.')
   expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
 })
 
@@ -1997,6 +1997,7 @@ test('R-bob-demo-19: approving the next round refuses to close a fully verified 
   expect(refused).toContain('reviewer')
   expect(refused).toContain('docs/evidence/review/')
   w.ledger = { ...ledger, evidence: [...ledger.evidence, { ...evidence('E-T-09', 'R-T-03', '2026-10-21T09:40:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }] }
+  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\nPASS\n'
   const ok = await approve($, 'INC-T-3')
   expect(ok).not.toContain('refused')
   expect(ok).toContain('closed (done)')
@@ -2051,4 +2052,105 @@ test('R-bob-demo-12 and 15: Edit the picture is one pane button that opens the m
   await ui.unmount()
   const { html } = mapData(w)
   expect(html).not.toContain('open <code>docs/product.opml')
+})
+
+// ---------------------------------------------------------------------------
+// The QA verdict of 29 October 2026 (docs/evidence/review/INC-03_qa_verdict.md): each
+// finding below was open on 0.16.1 and is closed here.
+// ---------------------------------------------------------------------------
+
+test('QA 1: proposing under a closed gate cannot change any existing round’s state: a ledger marking rounds done (which would read as idle) is refused, adding a proposed round is allowed', async ($, on) => {
+  await approvedWorld(on, { approvals: [], ledger: idleLedger(['done', 'proposed']) })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const allDone = idleLedger(['done', 'done'])
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/ledger.json`, content: JSON.stringify(allDone) }))).toContain('Gate A')
+  const emptied = { ...LEDGER, increments: [] }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/ledger.json`, content: JSON.stringify(emptied) }))).toContain('Gate A')
+  const added = { ...idleLedger(['done', 'proposed']), increments: [...idleLedger(['done', 'proposed']).increments, { id: 'INC-T-3', title: 'later', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }] }
+  expect(said(await $.tool.call({ tool: 'Write', file_path: `${ROOT}/bob/ledger.json`, content: JSON.stringify(added) }))).toBe('')
+})
+
+test('QA 2 and 3: the reviewer rule holds a round approved after the rule by instant (fractional seconds included), and a verdict is a file that exists, not a record alone', async ($, on) => {
+  const verified = { requirements: BRIEF.requirements.map(r => (['R-T-03', 'R-T-04'].includes(r.id) ? { ...r, state: 'verified', evidence_ids: ['E-T-03'] } : r)) }
+  const review = { ...evidence('E-T-09', 'R-T-03', '2026-10-29T12:00:00+11:00'), kind: 'artefact', ref: 'docs/evidence/review/INC-T-2_verdict.md' }
+  const ledger = { ...LEDGER, increments: [...LEDGER.increments, { id: 'INC-T-3', title: 'next', requirement_ids: ['R-T-05'], state: 'proposed', approval_id: null, ...base('ai') }], evidence: [...LEDGER.evidence, evidence('E-T-04', 'R-T-04', '2026-10-21T09:25:00+11:00'), review] }
+  const w = await approvedWorld(on, { brief: verified, ledger, approvals: [{ id: 'AP-T-2', brief_hash: await sha256(JSON.stringify(verified)), scope_increment_ids: ['INC-T-2'], approver: 'Mags (fixture)', approved_at: '2026-10-29T00:46:57.282Z', ...base('human') }] })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  // The record exists but no file: refused.
+  expect(await approve($, 'INC-T-3')).toContain('reviewer')
+  // The file exists: closes.
+  w.files!['docs/evidence/review/INC-T-2_verdict.md'] = '# Verdict\nPASS WITH FINDINGS\n'
+  expect(await approve($, 'INC-T-3')).toContain('closed (done)')
+})
+
+test('QA 4: a promise a screen rests on is proven by the person’s own press, "I’ve seen this", which writes the human-origin record, its file and the state; the button shows only for built screen promises in the active round', async ($, on) => {
+  const product = { name: 'P', nodes: [{ id: 'pane', kind: 'screen', name: 'The pane', says: '', promises: ['R-T-03'] }], edges: [] }
+  const w = await approvedWorld(on, { approvals: [], files: { 'bob/product.json': JSON.stringify(product) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(await approve($, 'INC-T-2')).not.toContain('refused')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: 'seen-R-T-03' })).toBeDefined()
+  expect(await ui.find({ key: 'seen-R-T-04' })).toBe(undefined)
+  await ui.press({ key: 'seen-R-T-03' })
+  await ui.unmount()
+  const ledger = JSON.parse(w.files!['bob/ledger.json'])
+  const look = ledger.evidence.find((e: any) => e.requirement_id === 'R-T-03' && e.origin === 'human')
+  expect(look).toBeDefined()
+  expect(w.files![look.ref]).toContain('pressed')
+  expect(JSON.parse(w.files!['bob/brief.json']).requirements.find((r: any) => r.id === 'R-T-03').state).toBe('verified')
+})
+
+test('QA 5: the pane note after a refused Approve carries no id', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  await approve($, 'INC-00')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  // INC-00 is active; the fixture’s next increment cannot be approved while INC-00 has unverified promises.
+  for (const b of await ui.findAll({ type: 'Button' })) if (String(b.key ?? '').startsWith('approve-')) await ui.press({ key: String(b.key) })
+  for (const t of await ui.findAll({ type: 'Text' })) expect(String(t.text ?? '')).not.toMatch(ID_LIKE)
+  await ui.unmount()
+  void w
+})
+
+test('QA 6: no result or refusal text names a typed command', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const texts = [await adopt($), await approve($, ''), await approve($, 'INC-00'), w.files!['docs/project-status.md']]
+  for (const t of texts) expect(t).not.toContain('/bob')
+})
+
+test('QA 7: the mind map reader keeps a renamed heading’s parts, reads a part nested under a part, accepts single-quoted attributes and comments, and the old picture is kept as a backup when edits are read back', async ($, on) => {
+  const xml = toOpml(PRODUCT as any).replace('text="What it produces"', "text='Outputs'").replace('<outline text="A flagged proposal"/>', '<outline text="A flagged proposal"><!-- a note --><outline text="A copy to the lead"/></outline>')
+  const back = toProduct(xml, PRODUCT as any)!
+  expect(back.nodes.find(n => n.name === 'A flagged proposal')?.kind).toBe('output')
+  expect(back.nodes.find(n => n.name === 'A copy to the lead')?.kind).toBe('output')
+  const w = await approvedWorld(on, { files: { 'bob/product.json': JSON.stringify(PRODUCT), 'docs/product.opml': xml }, mtimes: { 'bob/product.json': 1_000_000, 'docs/product.opml': 9_000_000 } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(JSON.parse(w.files!['bob/product.previous.json']).nodes.length).toBe(PRODUCT.nodes.length)
+  expect(JSON.parse(w.files!['bob/product.json']).nodes.length).toBe(PRODUCT.nodes.length + 1)
+})
+
+test('QA 8: the live line must show the picture: a link with no word of the map is not enough', async ($, on) => {
+  const w = await approvedWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: https://example.com/anything.\nNext: Ash needs to look.')
+  expect((await $.classic.Stop(stopInput())).block ?? '').toContain('show the map')
+  w.transcript = said1('Detail.\n\nStage: built.\nLive: the picture at https://claude.ai/artifact/abc.\nNext: Ash needs to look.')
+  expect((await $.classic.Stop(stopInput())).block).toBe(undefined)
+})
+
+test('QA 8: the run a click starts is not closed by the Stop of the turn the click landed in, only by a later turn’s', async ($, on) => {
+  const w = await adoptWorld(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await adopt($)
+  await $.turn.start({ text: 'a running turn', turnId: 't-landed' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: approveKey('INC-00') })
+  await ui.unmount()
+  await $.classic.Stop(stopInput())
+  expect(JSON.parse(w.files!['bob/ledger.json']).runs[0].state).toBe('running')
+  await $.turn.start({ text: 'the work', turnId: 't-work' })
+  await $.classic.Stop(stopInput())
+  expect(JSON.parse(w.files!['bob/ledger.json']).runs[0].state).toBe('completed')
 })
