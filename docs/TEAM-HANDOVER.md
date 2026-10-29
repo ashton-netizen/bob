@@ -1,6 +1,6 @@
 # BOB is yours: Alicia, Mags and Lucas
 
-Handed over by Ash on 29 October 2026, 10:40 pm. Ash is out. You three own BOB from here: you decide whether it is kept, cut back, or stopped, and nobody needs Ash's approval for any of it. This page is the whole handover; everything else it points to is in this repository.
+Handed over by Ash on 29 October 2026, 10:40 pm. Ash is out. You three own BOB from here, and Mags makes the call on whether it is kept, cut back, or stopped (Ash's ruling, 11:05 pm); Alicia and Lucas advise. Nobody needs Ash's approval for any of it. This page is the whole handover; everything else it points to is in this repository.
 
 ## What BOB is
 BOB (Build Optimisation Buddy) is a Claude Code plugin. It sits as a pane beside the chat in the Claude desktop app's Code tab. A person says an idea in a sentence; Claude designs it with them in plain questions; BOB draws a picture of what is being built and lights each part as it is proven; then the build runs in rounds where no round starts without the person's Approve press and none ends without proof on file. The person types nothing but their idea and their answers; every ask is a button in the pane.
@@ -37,7 +37,7 @@ Branch, pull request, five required checks (secret scan, plugin validate and tes
 - Name the doer on every action line, one step at a time for a person, never a list of to-dos.
 
 ## Your first decision
-Each of you runs one small real idea through it (half an hour; `docs/product/mags-first-session.md` says what pass and fail look like). Then decide together, and write the decision at the top of `docs/project-status.md` in this repository:
+Each of you runs one small real idea through it (half an hour; `docs/product/mags-first-session.md` says what pass and fail look like). Then Mags decides, with Alicia's and Lucas's notes in front of her, and writes the decision at the top of `docs/project-status.md` in this repository:
 - Keep: run the next real project through it the same way.
 - Cut: strip it to the gates and the picture; drop the status page, the proof counts in the pane and the reviewer ceremony.
 - Stop: archive the repository. Nothing else depends on it.

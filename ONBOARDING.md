@@ -23,7 +23,7 @@ Read `docs/TEAM-HANDOVER.md` in https://github.com/ashton-netizen/bob (public) i
 ## Step 3: the verdict goes in the repository
 Ask them three things and write the answers exactly: what they built (their words), what was confusing or annoying, and whether they would use it for a real job. Then, on a branch of https://github.com/ashton-netizen/bob, add a dated section at the top of `docs/project-status.md` with their first name, the three answers, the picture link and your notes, and open a pull request. Never push to main. If they have no GitHub access yet, save the same text as `BOB-verdict-<first name>-<date>.md` in their BOB folder and tell them it is there for whoever opens the pull request.
 
-When all three have a section there, they decide together (keep, cut back to the gates and the picture, or stop) and the decision goes at the top of the same file. Ash does not need to be told.
+When all three have a section there, Mags decides (keep, cut back to the gates and the picture, or stop), with Alicia's and Lucas's notes in front of her, and the decision goes at the top of the same file. Ash does not need to be told.
 
 ## Hard rules
 - Never change main of any repository directly. Branch and pull request only.
