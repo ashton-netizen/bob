@@ -192,7 +192,7 @@ async function writePage($: Engine) {
     }
     const b = describe(m, await read($, preflightAtom), Date.now())
     const project = String(m.brief?.project?.name ?? m.place?.project ?? m.root.split('/').pop() ?? 'this project')
-    await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }))
+    await $.fs.write(at(m.root, 'docs/status.html'), renderStatusHtml(b, { project, generatedAt: new Date().toISOString(), repo: m.root }, await pageAssets($)))
     await writeMap($, m, b)
     await writeNow($, m, b)
   } catch {
@@ -234,6 +234,16 @@ async function writeNow($: Engine, m: Model, b: ReturnType<typeof describe>) {
   if (next !== current) await $.fs.write(path, next)
 }
 
+// The real BOB files for both pages: the character and the two lockups.
+async function pageAssets($: Engine): Promise<{ character: string; dark: string; light: string } | null> {
+  try {
+    const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
+    return { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
+  } catch {
+    return null
+  }
+}
+
 // docs/map.html, the project as a map. The template and the approved
 // character and lockups ship with the plugin (templates/map.html,
 // assets/bob/web/); the dots come from the records and nothing else.
@@ -241,8 +251,8 @@ async function writeMap($: Engine, m: Model, b: ReturnType<typeof describe> | nu
   try {
     const template = await readText($, `${$.plugin.root}/templates/map.html`)
     if (template === null) return
-    const png = async (name: string) => String(((await $.fs.read(`${$.plugin.root}/assets/bob/web/${name}.png`, { as: 'bytes' })) as { base64: string }).base64)
-    const assets = { character: await png('character-280'), dark: await png('lockup-dark-760'), light: await png('lockup-light-760') }
+    const assets = await pageAssets($)
+    if (!assets) return
     await $.fs.write(at(m.root, 'docs/map.html'), renderMap(template, assets, data ?? buildMapData(m, b as ReturnType<typeof describe>, new Date().toISOString(), await readMapFile($, m), await pictureOf($, m))))
   } catch {
     // a missing asset never blocks a session; the board page is still written
