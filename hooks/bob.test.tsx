@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { lightUp, toOpml, toProduct } from './product'
 
 // Every record below is SYNTHETIC (is_synthetic true) and deliberately differs
 // from fixtures/ so a pane that hard-codes the spike's values fails here.
@@ -146,6 +147,8 @@ type World = {
   personDeny?: string
   // Every $.tool.register the module made, in order.
   tools?: { name: string; isDeferred?: unknown }[]
+  // Per-file modification times (repo-relative path), for the picture's newer-wins rule.
+  mtimes?: Record<string, number>
   // Every $.prompt.submit and $.turn.abort the module made, in order.
   prompts?: string[]
   aborts?: string[]
@@ -236,7 +239,9 @@ function world(on: any, w: World) {
   })
   on('fs.stat', (_: unknown, e: { path: string }) => {
     if (text(e.path) === undefined) throw new Error(`ENOENT ${e.path}`)
-    return { value: { kind: 'file', size: 1, mtimeMs: w.ledgerMtimeMs, isLink: false } }
+    const r = rel(e.path)
+    const own = r !== undefined && w.mtimes ? w.mtimes[r] : undefined
+    return { value: { kind: 'file', size: 1, mtimeMs: own ?? w.ledgerMtimeMs, isLink: false } }
   })
   // The engine hands the options over as e.init (seen 23 October 2026 on 2.1.304).
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
@@ -1874,4 +1879,75 @@ test('R-bob-demo-12: the map page carries the product schematic from bob/map.jso
   const { data, html } = mapData(w)
   expect(data.schematic?.screens.map(s => s.name)).toEqual(['Project home', 'Waiting on you'])
   expect(html).toContain('the idea becomes a brief to approve')
+})
+
+// ---------------------------------------------------------------------------
+// The picture at the heart (Ash, 29 October 2026): the product's own flowchart,
+// lit from the records, editable in MindNode and read back.
+// ---------------------------------------------------------------------------
+
+const PRODUCT = {
+  name: 'Rate check',
+  nodes: [
+    { id: 'ask', kind: 'trigger', name: 'A lead asks for a price', says: 'by email', promises: ['R-T-01'] },
+    { id: 'card', kind: 'source', name: 'The rate card', says: 'the live sheet', promises: ['R-T-02'] },
+    { id: 'check', kind: 'step', name: 'Check the line against the card', says: '', promises: ['R-T-03', 'R-T-04'] },
+    { id: 'flag', kind: 'output', name: 'A flagged proposal', says: '', promises: [] },
+  ],
+  edges: [{ from: 'ask', to: 'check', what: 'the ask starts a check' }, { from: 'card', to: 'check', what: '' }, { from: 'check', to: 'flag', what: 'underpriced lines are flagged' }],
+}
+
+test('R-bob-demo-11: the picture lights each part from the records only: proven when every promise it rests on is proven with evidence, built when any is built, not started otherwise, none when it rests on nothing', async () => {
+  const pic = lightUp(PRODUCT as any, BRIEF.requirements, LEDGER.evidence)
+  const light = (id: string) => pic.nodes.find(n => n.id === id)?.light
+  expect([light('ask'), light('card'), light('check'), light('flag')]).toEqual(['proven', 'proven', 'built', 'none'])
+  expect(pic.nodes.find(n => n.id === 'check')?.proofs).toBe(1)
+  const noEvidence = lightUp(PRODUCT as any, BRIEF.requirements, [])
+  expect(noEvidence.nodes.find(n => n.id === 'ask')?.light).toBe('built')
+})
+
+test('R-bob-demo-12: the picture round-trips through the mind map file: every part under its heading with its note and arrows, and reading it back gives the same parts, arrows and promises', async () => {
+  const xml = toOpml(PRODUCT as any)
+  expect(xml).toContain('<outline text="What starts it">')
+  expect(xml).toContain('<outline text="A lead asks for a price" _note="by email">')
+  expect(xml).toContain('→ Check the line against the card: the ask starts a check')
+  const back = toProduct(xml, PRODUCT as any)!
+  expect(back.name).toBe('Rate check')
+  expect(back.nodes.map(n => [n.kind, n.name])).toEqual(PRODUCT.nodes.map(n => [n.kind, n.name]))
+  expect(back.nodes.find(n => n.name === 'The rate card')?.promises).toEqual(['R-T-02'])
+  expect(back.edges.length).toBe(3)
+  expect(back.edges.find(e => e.what === 'underpriced lines are flagged')).toBeDefined()
+  expect(toProduct('<opml><body><outline text="not a picture"/></body></opml>', null)).toBe(null)
+})
+
+test('R-bob-demo-12: a part the person adds or renames in MindNode comes back as a part; a renamed one starts with no promises and the page can say so', async () => {
+  const xml = toOpml(PRODUCT as any).replace('text="A flagged proposal"', 'text="A flagged proposal, sent to the lead"').replace('  </outline>\n</outline>', '    <outline text="A weekly summary"/>\n  </outline>\n</outline>')
+  const back = toProduct(xml, PRODUCT as any)!
+  expect(back.nodes.some(n => n.name === 'A flagged proposal, sent to the lead' && n.promises.length === 0)).toBe(true)
+  expect(back.nodes.some(n => n.name === 'A weekly summary' && n.kind === 'screen')).toBe(true)
+  expect(back.nodes.find(n => n.name === 'The rate card')?.promises).toEqual(['R-T-02'])
+})
+
+test('R-bob-demo-11: docs/map.html carries the picture, lit from the records, with no code on any box', async ($, on) => {
+  const w = await approvedWorld(on, { files: { 'bob/product.json': JSON.stringify(PRODUCT) } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w) as any
+  expect(data.picture.name).toBe('Rate check')
+  expect(data.picture.nodes.map((n: any) => n.light)).toEqual(['proven', 'proven', 'built', 'none'])
+  for (const n of data.picture.nodes) { expect(n.name).not.toMatch(ID_LIKE); expect(n.says).not.toMatch(ID_LIKE) }
+  // The mind map twin is written beside it the first time.
+  expect(w.writes!.some(x => x.path === 'docs/product.opml' && x.text.includes('What starts it'))).toBe(true)
+})
+
+test('R-bob-demo-12: when the mind map file is newer than the picture file, the person’s edits win: BOB reads them back into bob/product.json and draws the edited picture', async ($, on) => {
+  const edited = toOpml(PRODUCT as any).replace('text="A flagged proposal"', 'text="A flagged proposal in HubSpot"')
+  const w = await approvedWorld(on, { files: { 'bob/product.json': JSON.stringify(PRODUCT), 'docs/product.opml': edited }, mtimes: { 'bob/product.json': 1_000_000, 'docs/product.opml': 9_000_000 } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const { data } = mapData(w) as any
+  expect(data.picture.nodes.some((n: any) => n.name === 'A flagged proposal in HubSpot')).toBe(true)
+  expect(data.picture.editedAt).not.toBe(null)
+  const back = JSON.parse(w.files!['bob/product.json'])
+  expect(back.nodes.some((n: any) => n.name === 'A flagged proposal in HubSpot')).toBe(true)
+  // The older picture file is never written over the newer mind map.
+  expect(w.writes!.some(x => x.path === 'docs/product.opml')).toBe(false)
 })

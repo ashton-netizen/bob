@@ -1,4 +1,5 @@
 import type { Any, Board, Model } from './board'
+import type { Picture } from './product'
 
 // The map, BOB's home page (docs/map.html). Pure functions: the page is a view
 // of bob/brief.json, bob/ledger.json and bob/map.json, so no state or count on
@@ -26,6 +27,9 @@ export type MapData = {
   total: number
   question: string | null
   schematic: Schematic
+  // The picture at the heart (29 October 2026): the product's own flowchart,
+  // lit from the records. The stages below are the strip behind it.
+  picture: Picture | null
   branches: Branch[]
 }
 export type MapAssets = { character: string; dark: string; light: string }
@@ -60,7 +64,7 @@ const roundWords = (b: Board, m: Model): string => {
   return 'Waiting for an approval'
 }
 
-export function buildMapData(m: Model, b: Board, generatedAt: string, file: MapFile = {}): MapData {
+export function buildMapData(m: Model, b: Board, generatedAt: string, file: MapFile = {}, picture: Picture | null = null): MapData {
   const reqs = ((m.brief?.requirements ?? []) as Any[])
   const evidence = ((m.ledger?.evidence ?? []) as Any[])
   const incs = ((m.ledger?.increments ?? []) as Any[])
@@ -115,6 +119,7 @@ export function buildMapData(m: Model, b: Board, generatedAt: string, file: MapF
     total: all.length,
     question: all.length ? null : QUESTION,
     schematic: file.schematic ?? null,
+    picture,
     branches,
   }
 }
@@ -137,7 +142,7 @@ export const renderMap = (template: string, assets: MapAssets, data: MapData): s
 // page asks the one question.
 const DESIGN_ON_SPINE = [1, 1, 3, 4, 5, 6]
 
-export function designMapData(m: Model, project: string, stages: string[], done: boolean[], generatedAt: string, file: MapFile = {}): MapData {
+export function designMapData(m: Model, project: string, stages: string[], done: boolean[], generatedAt: string, file: MapFile = {}, picture: Picture | null = null): MapData {
   const items: Dot[] = stages.map((name, i) => ({
     id: `stage-${i + 1}`,
     state: done[i] ? 'built' : 'todo',
@@ -159,6 +164,7 @@ export function designMapData(m: Model, project: string, stages: string[], done:
     total: items.length,
     question: started ? null : QUESTION,
     schematic: file.schematic ?? null,
+    picture,
     branches,
   }
 }
