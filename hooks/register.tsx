@@ -1432,7 +1432,10 @@ export const register: Register = on => {
     await resetRound($)
     await writePage($)
 
-    void $.ui.open({ id: PANE, title: TITLE })
+    // The app hot-reloads plugins when a version is installed and the pane sat
+    // empty until the next turn redrew it (Ash, 29 October 2026): redraw once
+    // the pane is open, and once more a moment later.
+    void $.ui.open({ id: PANE, title: TITLE }).then(() => { redraw($); setTimeout(() => redraw($), 1500) }).catch(() => { redraw($) })
 
     return next(e)
   })
