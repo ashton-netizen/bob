@@ -26,6 +26,7 @@ declare module 'claude-code' {
       turn: string | null
       proven: boolean
       run: string | null
+      runTurn: string
     }
   }
 }

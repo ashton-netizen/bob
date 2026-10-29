@@ -34,6 +34,8 @@ const turnAtom = atom({ plugin: 'bob', key: 'turn' } as const, null as string | 
 // The run an Approve click started (phase one, R-bob-demo-17): closed with a
 // finished event when the turn it started ends; null when no click started one.
 const runAtom = atom({ plugin: 'bob', key: 'run' } as const, null as string | null)
+// The turn the click landed in (its Stop must not close the run; the next turn's does).
+const runTurnAtom = atom({ plugin: 'bob', key: 'runTurn' } as const, '' as string)
 
 type Engine = Any
 
@@ -163,6 +165,7 @@ async function readPicture($: Engine, m: Model): Promise<{ product: Product | nu
     const edited = xml === null ? null : toProduct(xml, product)
     if (!edited) await update($, noteAtom, () => 'Your mind map was saved but BOB could not read it as a picture (it needs the seven headings BOB wrote). The last picture stands; press Edit the picture to reopen it.')
     if (edited) {
+      if (product) await $.fs.write(at(m.root, 'bob/product.previous.json'), pretty(product))
       product = edited
       editedAt = new Date(opmlAt).toISOString()
       await $.fs.write(jsonPath, pretty({ $comment: 'Read back from docs/product.opml (your mind map) by BOB. Edit either; the newer one wins.', ...edited }))
@@ -340,7 +343,7 @@ function proposalRefusals(schema: Any, p: Any): string[] {
   for (const inc of (Array.isArray(ledger.increments) ? ledger.increments : []) as Any[]) {
     out.push(...baseRefusals(schema, inc, 'increment'))
     if (!incStates.includes(inc.state)) out.push(`increment ${inc.id}: state "${inc.state}" is not a state in bob/schema.json`)
-    if (inc.state === 'active') out.push(`increment ${inc.id}: adopt cannot propose an active increment; approval is /bob approve`)
+    if (inc.state === 'active') out.push(`increment ${inc.id}: adopt cannot propose an active increment; approval is a person\u2019s press on Approve in the BOB pane`)
     const reqIds = new Set(reqs.map(r => String(r.id)))
     for (const id of (inc.requirement_ids ?? []) as string[]) if (!reqIds.has(id)) out.push(`increment ${inc.id}: requirement ${id} is not in brief.requirements`)
   }
@@ -474,16 +477,26 @@ async function adopt($: Engine): Promise<string> {
   ].join('\n')
 }
 
-const REVIEW_RULE_FROM = '2026-10-29T00:46:57Z'
-const reviewed = (m: Model, inc: Any): boolean => {
+// Rounds approved before the rule existed are exempt, by instant (a string
+// compare let "…57.282Z" sort before "…57Z" and exempted the live round: QA,
+// 29 October 2026). A verdict is a file that exists under docs/evidence/review/
+// with something in it, named by an evidence record; a record alone is nothing.
+const REVIEW_RULE_FROM_MS = Date.parse('2026-10-29T00:46:00Z')
+async function reviewed($: Engine, m: Model, inc: Any): Promise<boolean> {
   const approval = m.approvals.find(a => a.id === inc.approval_id)
-  if (approval && String(approval.approved_at ?? '') < REVIEW_RULE_FROM) return true
-  return evidenceFor(m, (inc.requirement_ids ?? []) as string[]).some(ev => String(ev.ref ?? '').startsWith('docs/evidence/review/'))
+  const at_ = Date.parse(String(approval?.approved_at ?? ''))
+  if (!Number.isNaN(at_) && at_ < REVIEW_RULE_FROM_MS) return true
+  const refs = evidenceFor(m, (inc.requirement_ids ?? []) as string[]).map(ev => String(ev.ref ?? '')).filter(r => r.startsWith('docs/evidence/review/'))
+  for (const r of refs) {
+    const text = await readText($, at(m.root, r))
+    if (text !== null && text.trim().length > 0) return true
+  }
+  return false
 }
 
 async function approve($: Engine, idArg: string, originKind: string | undefined): Promise<string> {
   const id = idArg.trim()
-  if (!id) return refusedText('approve', ['no increment id given. Usage: /bob approve <increment id>'])
+  if (!id) return refusedText('approve', ['no increment named; approve is pressed per round in the BOB pane'])
   if (originKind && NON_HUMAN_ORIGINS.includes(originKind)) return refusedText('approve', [`this command came from "${originKind}", not a person. Only a person at the prompt approves`])
 
   const m = await load($)
@@ -506,7 +519,7 @@ async function approve($: Engine, idArg: string, originKind: string | undefined)
     // verdict on file, an evidence record whose file sits under
     // docs/evidence/review/ (the Infinite Leverage reviewers at stage nine).
     // Rounds approved before this rule (the ledger says so) are exempt.
-    if (!reviewed(m, other)) return refusedText('approve', [`${other.id} has every promise verified but no reviewer's verdict on file: run the reviewers (product manager and QA) on the round and save their verdict as an evidence record with its file under docs/evidence/review/, then approve ${id}`], `Claude: run the reviewers on \u201c${titleOf(other)}\u201d and file the verdict under docs/evidence/review/`)
+    if (!(await reviewed($, m, other))) return refusedText('approve', [`${other.id} has every promise verified but no reviewer's verdict on file: run the reviewers (product manager and QA) on the round and save their verdict as an evidence record with its file under docs/evidence/review/, then approve ${id}`], `Claude: run the reviewers on \u201c${titleOf(other)}\u201d and file the verdict under docs/evidence/review/`)
   }
   if (['done', 'returned'].includes(inc.state)) return refusedText('approve', [`${id} is ${inc.state}; a closed increment is not re-approved`])
   const dup = m.approvals.find(a => (a.scope_increment_ids ?? []).includes(id) && (a.brief_hash === m.hash || (a.scope_hash && a.scope_hash === m.scopeHash)))
@@ -630,7 +643,7 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
 
   const wrote: string[] = []
   const now = stamp()
-  await $.fs.write(at(dir, 'docs/project-status.md'), `# ${name} · project status (living file, update in place)\n\nA BOB project in the workspace ${place.session}. Not governed yet: no bob/brief.json.\n\n## Build log (one line per step: step, state, evidence)\n- /bob new, ${now}: implemented. Folder ${dir} made, git initialised on main, nothing committed; registered in ${WORKSPACE_FILE} as the current project. Next: Ash tells Claude about the idea; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved.\n`)
+  await $.fs.write(at(dir, 'docs/project-status.md'), `# ${name} · project status (living file, update in place)\n\nA BOB project in the workspace ${place.session}. Not governed yet: no bob/brief.json.\n\n## Build log (one line per step: step, state, evidence)\n- project started, ${now}: implemented. Folder ${dir} made, git initialised on main, nothing committed; registered in ${WORKSPACE_FILE} as the current project. Next: Ash tells Claude about the idea; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved.\n`)
   wrote.push(`${name}/docs/project-status.md`)
   const notes: string[] = []
   if (!(await exists($, at(place.session, 'CLAUDE.md')))) {
@@ -652,7 +665,7 @@ async function newProject($: Engine, nameArg: string, originKind: string | undef
     `- ran git init -b main (nothing committed)`,
     ...wrote.map(w => `- wrote ${w}`),
     ...notes,
-    'The pane now shows this project, and the gates and /bob adopt work on it.',
+    'The pane now shows this project; the gates and the Adopt button work on it.',
     'Next action: Ash needs to: tell Claude about the idea; Claude designs it with design-with-bob, and the BOB pane offers Adopt once the design is approved.',
   ].join('\n')
 }
@@ -857,7 +870,7 @@ async function pressApprove($: Engine, id: string, e: Any) {
   const m = await load($)
   const inc = ((m.ledger?.increments ?? []) as Any[]).find(i => i.id === id)
   const approver = String(m.approvals[m.approvals.length - 1]?.approver ?? 'you')
-  await update($, noteAtom, () => (refused ? `Approve did not go through: ${text.split('\n')[1]?.replace(/^- /, '') ?? 'see the chat'}` : `Approved: “${titleOf(inc)}” by ${approver}. Claude starts now.`))
+  await update($, noteAtom, () => (refused ? 'Approve did not go through; Claude has the reason and says it in the chat.' : `Approved: “${titleOf(inc)}” by ${approver}. Claude starts now.`))
   await resetRound($)
   // An approval that lands while nobody is running stalls the build (29 October 2026,
   // AP-02 landed a minute after the window ended its turn). The click starts the
@@ -871,6 +884,8 @@ async function pressApprove($: Engine, id: string, e: Any) {
     const event = { id: `EV-BOB-${String(events.length + 1).padStart(2, '0')}`, run_id: run.id, at: now, origin: 'human', type: 'started', detail: `“${titleOf(inc)}” started by Ash’s click on Approve`, created_at: now, source: 'human', is_synthetic: false }
     await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, runs: [...runs, run], events: [...events, event] }))
     await update($, runAtom, () => run.id)
+    const landedIn = (await read($, turnAtom)) ?? ''
+    await update($, runTurnAtom, () => landedIn)
   }
   await writePage($)
   redraw($)
@@ -889,6 +904,9 @@ async function pressApprove($: Engine, id: string, e: Any) {
 async function closeRun($: Engine) {
   const runId = await read($, runAtom)
   if (!runId) return
+  const landed = await read($, runTurnAtom)
+  const current = await read($, turnAtom)
+  if (landed && current && landed === current) return
   await update($, runAtom, () => null)
   const m = await load($)
   if (!m.ownLedger || !m.ledger) return
@@ -1037,6 +1055,30 @@ async function pressEditPicture($: Engine, e: Any) {
   redraw($)
 }
 
+// R-bob-demo-18 (QA, 29 October 2026: a human-origin record Claude writes is
+// self-declared). The person's look is their own press: "I've seen this" on a
+// built promise a screen rests on writes the human-origin evidence record and
+// its file, and moves the promise to verified. Claude cannot raise a press.
+async function pressSeen($: Engine, rid: string, e: Any) {
+  if (await personRefused($, 'I\u2019ve seen this', e)) return
+  const m = await load($)
+  if (!m.ownLedger || !m.ledger || !m.brief) return
+  const req = ((m.brief.requirements ?? []) as Any[]).find(r => r.id === rid)
+  if (!req || !['implemented', 'reported'].includes(String(req.state))) return
+  const now = stamp()
+  const evidence: Any[] = m.ledger.evidence ?? []
+  const ref = `docs/evidence/looks/${rid}_${now.replace(/[:.]/g, '-')}.md`
+  const text = `# Seen by a person: ${clipText(req.text, 120)}\n\nA person pressed \u201cI\u2019ve seen this\u201d in the BOB pane at ${when(now)} for this promise, on the pane and pages BOB had written from the records. Written by BOB on that press; not by Claude.\n`
+  await $.fs.write(at(m.root, ref), text)
+  const record = { id: `E-LOOK-${String(evidence.length + 1).padStart(2, '0')}`, requirement_id: rid, kind: 'screenshot', ref, captured_at: now, origin: 'human', created_at: now, source: 'human', is_synthetic: false }
+  await $.fs.write(at(m.root, m.ledgerPath), pretty({ ...m.ledger, evidence: [...evidence, record] }))
+  const brief = { ...m.brief, requirements: ((m.brief.requirements ?? []) as Any[]).map(r => (r.id === rid ? { ...r, state: 'verified', evidence_ids: [...((r.evidence_ids ?? []) as string[]), record.id] } : r)) }
+  await $.fs.write(at(m.root, 'bob/brief.json'), pretty(brief))
+  await update($, noteAtom, () => `Seen: \u201c${clipText(req.text, 60)}\u201d is now proven by your look.`)
+  await writePage($)
+  redraw($)
+}
+
 async function pressPause($: Engine, e: Any) {
   if (await personRefused($, 'Pause', e)) return
   const turnId = await read($, turnAtom)
@@ -1068,7 +1110,17 @@ function proposesOnly(m: Model, path: string, e: Any): boolean {
   if (text === null) return false
   try {
     const after = JSON.parse(text) as Any
-    return ((after.increments ?? []) as Any[]).every(i => !['active', 'approved'].includes(String(i.state)))
+    const incs = ((after.increments ?? []) as Any[])
+    if (!incs.every(i => !['active', 'approved'].includes(String(i.state)))) return false
+    // Every round that exists keeps its state (a ledger marking all rounds done
+    // would read as idle and open every gate: QA, 29 October 2026). New rounds
+    // may only be proposed; a proposed one may be withdrawn.
+    const before = new Map<string, string>(((m.ledger?.increments ?? []) as Any[]).map(i => [String(i.id), String(i.state)]))
+    for (const i of incs) {
+      const was = before.get(String(i.id))
+      if (was === undefined ? String(i.state) !== 'proposed' : was !== String(i.state)) return false
+    }
+    return [...before.keys()].every(id => incs.some(i => String(i.id) === id) || before.get(id) === 'proposed')
   } catch {
     return false
   }
@@ -1296,7 +1348,7 @@ async function reportCheck($: Engine, e: Any): Promise<{ block: string } | null>
       }
     }
     const text = closing.join('\n')
-    if (!/docs\/map\.html|https?:\/\/\S+/i.test(text)) {
+    if (!/docs\/map\.html|(?:map|picture)[^\n]*https?:\/\/\S+|https?:\/\/\S+[^\n]*(?:map|picture)/i.test(text)) {
       return {
         block:
           'BOB report check: the closing report does not show the map. Every round ends by republishing the map and giving its link (or docs/map.html) on the live line, so the person sees it rather than reads about it. ' +
@@ -1491,6 +1543,9 @@ export const register: Register = on => {
     // The first thing a new person sees: the one question (R-bob-demo-14). It leads
     // when the workspace has no project, or the current project has not started.
     const askFirst = !!m.place.workspace && (!m.place.project || (!tracked && !design))
+    // Built promises a screen rests on, in the active round: proven only by a person's press.
+    const face = active ? await facePromises($, m) : new Set<string>()
+    const toSee: string[] = active ? ((active.requirement_ids ?? []) as string[]).filter(rid => face.has(rid) && ['implemented', 'reported'].includes(stateOf(rid))) : []
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -1522,6 +1577,11 @@ export const register: Register = on => {
           <Box flexDirection="column" borderStyle="round" paddingX={1}>
             <Text weight="semibold">{`Round: ${titleOf(active)}`}</Text>
             {chips((active.requirement_ids ?? []) as string[])}
+            {toSee.map(rid => (
+              <Button key={`seen-${rid}`} onPress={press => pressSeen($, rid, press)}>
+                {`I\u2019ve seen this: ${textOf(rid)}`}
+              </Button>
+            ))}
             {gateA && !gateA.ok ? (
               <Button key={`reapprove-${active.id}`} variant="primary" onPress={press => pressApprove($, String(active.id), press)}>
                 {`Approve again: ${titleOf(active)} (the brief changed)`}

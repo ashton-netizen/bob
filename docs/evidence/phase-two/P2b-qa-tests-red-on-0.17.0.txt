@@ -1,0 +1,10 @@
+(fail) QA 1: proposing under a closed gate cannot change any existing round’s state: a ledger marking rounds done (which would read as idle) is refused, adding a proposed round is allowed [27.04ms]
+(fail) QA 2 and 3: the reviewer rule holds a round approved after the rule by instant (fractional seconds included), and a verdict is a file that exists, not a record alone [21.14ms]
+(fail) QA 4: a promise a screen rests on is proven by the person’s own press, "I’ve seen this", which writes the human-origin record, its file and the state; the button shows only for built screen promises in the active round [24.97ms]
+(pass) QA 5: the pane note after a refused Approve carries no id [29.05ms]
+(fail) QA 6: no result or refusal text names a typed command [27.63ms]
+(fail) QA 7: the mind map reader keeps a renamed heading’s parts, reads a part nested under a part, accepts single-quoted attributes and comments, and the old picture is kept as a backup when edits are read back [0.33ms]
+(fail) QA 8: the live line must show the picture: a link with no word of the map is not enough [30.18ms]
+(fail) QA 8: the run a click starts is not closed by the Stop of the turn the click landed in, only by a later turn’s [33.48ms]
+ 109 pass
+ 8 fail
